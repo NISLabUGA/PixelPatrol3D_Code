@@ -724,20 +724,6 @@ function runScans() {
   }, SCAN_INTERVAL);
 }
 
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  console.log(
-    '[Background] - ' + getHrTimestamp() + ' Active tab changed running scan!',
-  );
-  if (scanId) {
-    clearInterval(scanId);
-    console.log(
-      `[Background] - ${getHrTimestamp()} - Scanning interval reset.`,
-    );
-  }
-  runSingleScan();
-  runScans();
-});
-
 // Performance logging
 setInterval(() => {
   chrome.storage.local.get(
