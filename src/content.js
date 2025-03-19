@@ -117,11 +117,11 @@ function showDangerModal() {
     console.log(
       '[Content] - ' +
         getHrTimestamp() +
-        ' Not malicious button clicked, changing classification to benign',
+        ' Not malicious button clicked, changing classification to false positive ("fp")',
     );
     chrome.storage.local.get(['classification'], (result) => {
       let ts = result.classification.split('_')[1];
-      chrome.storage.local.set({ classification: `benign_${ts}` });
+      chrome.storage.local.set({ classification: `fp_${ts}` });
     });
     chrome.runtime.sendMessage({ type: 'resumeScans' });
     modalOverlay.remove();

@@ -14,7 +14,9 @@ const SAVE_INTERVAL = 30 * 1000;
 
 // Global variables
 
+const mainExtDownloadDir = 'pp_ext';
 let sessionStartTime = Date.now();
+let sessionStartTimeHr = getHrTimestamp();
 let scanStartTime = 0;
 let pureAllInfStartTime = 0;
 let scanId = null;
@@ -54,7 +56,7 @@ function saveLogsToFile() {
 
     chrome.downloads.download({
       url: url,
-      filename: `${sessionStartTime}/logs/performance_${getHrTimestamp()}.txt`,
+      filename: `${mainExtDownloadDir}/${sessionStartTimeHr}/logs/performance_${getHrTimestamp()}.txt`,
       saveAs: false,
     });
 
@@ -384,7 +386,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         (result) => {
           saveScreenshot(
             ssDataUrlRaw,
-            `${sessionStartTime}/${result.classification.split('_')[0]}`,
+            `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+              result.classification.split('_')[0]
+            }`,
             `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
           );
         },
@@ -596,7 +600,9 @@ async function startInference() {
         chrome.storage.local.get(['phash', 'classification'], (result) => {
           saveScreenshot(
             ssDataUrlRaw,
-            `${sessionStartTime}/${result.classification.split('_')[0]}`,
+            `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+              result.classification.split('_')[0]
+            }`,
             `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
           );
         });
@@ -673,7 +679,7 @@ function runScans() {
 
             saveScreenshot(
               ssDataUrlRaw,
-              `${sessionStartTime}/benign`,
+              `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
               `${domain}_wl_${getHrTimestamp()}`,
             );
           } else {
