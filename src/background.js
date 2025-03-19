@@ -300,9 +300,6 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
     ['mainToggleState', 'ssToggleState'],
     async (data) => {
       if (data.mainToggleState && data.ssToggleState) {
-        if (!dataUrl) {
-          dataUrl = await captureScreenshot();
-        }
         fetch(dataUrl)
           .then((res) => res.blob())
           .then((blob) => {
@@ -335,30 +332,43 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
   );
 }
 
-function injectContentScript() {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs && tabs.length > 0 && tabs[0].id) {
-      console.log(
-        `[Background] - ${getHrTimestamp()} - Injecting content.js into tab: ${
-          tabs[0].id
-        }`,
-      );
+async function injectContentScript() {
+  return new Promise((resolve, reject) => {
+    // Query for the active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        return reject(new Error('No active tab found'));
+      }
+      const tabId = tabs[0].id;
+      // Inject content.js into the active tab
       chrome.scripting.executeScript(
         {
-          target: { tabId: tabs[0].id },
+          target: { tabId },
           files: ['content.js'],
         },
         () => {
-          // Pause the scanning interval once the content script is injected
+          if (chrome.runtime.lastError) {
+            return reject(chrome.runtime.lastError);
+          }
           if (scanId) {
             clearInterval(scanId);
             console.log(
               `[Background] - ${getHrTimestamp()} - Scanning paused.`,
             );
           }
+          // Set up a one-time listener waiting for the button press message
+          const listener = (message, sender, sendResponse) => {
+            if (message.type === 'userActionComplete') {
+              // Remove listener to avoid duplicate handling
+              chrome.runtime.onMessage.removeListener(listener);
+              // Resolve with any result you want to pass back
+              resolve(message.result);
+            }
+          };
+          chrome.runtime.onMessage.addListener(listener);
         },
       );
-    }
+    });
   });
 }
 
@@ -369,30 +379,37 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.classification &&
       changes.classification.newValue.split('_')[0] === 'malicious'
     ) {
-      injectContentScript();
       let case23TotalTime = Date.now() - scanStartTime;
 
-      chrome.storage.local.set({ totalTime: case23TotalTime });
+      (async () => {
+        let result = await injectContentScript();
+        console.log(
+          `[Background] - ${getHrTimestamp()} - User action received: ${result}. `,
+        );
 
-      console.log(
-        `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
-      );
-      logMessage(
-        `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
-      );
+        chrome.storage.local.set({ totalTime: case23TotalTime });
 
-      chrome.storage.local.get(
-        ['phash', 'classification', 'currentDomain'],
-        (result) => {
-          saveScreenshot(
-            ssDataUrlRaw,
-            `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-              result.classification.split('_')[0]
-            }`,
-            `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
-          );
-        },
-      );
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
+        );
+        logMessage(
+          `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
+        );
+
+        chrome.storage.local.get(
+          ['phash', 'classification', 'currentDomain'],
+          (result) => {
+            saveScreenshot(
+              ssDataUrlRaw,
+              `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+                result.classification.split('_')[0]
+              }`,
+              `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
+            );
+          },
+        );
+      })();
+
       return;
     }
   }
@@ -534,7 +551,7 @@ async function startInference() {
   // Capturing screenshot
   let startTakeSsTime = Date.now();
   ssDataUrlRaw = await captureScreenshot();
-  chrome.storage.local.set({ dataUrl: ssDataUrlRaw });
+  chrome.storage.local.set({ ssDataUrlRaw: ssDataUrlRaw });
   let takeSsTime = Date.now() - startTakeSsTime;
   console.log(
     `[Background] - ${getHrTimestamp()} - Time to take screenshot: ${takeSsTime} ms`,
@@ -634,69 +651,93 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-// Main function
-function runScans() {
-  scanId = setInterval(() => {
-    chrome.storage.local.get(['mainToggleState'], (data) => {
-      if (data.mainToggleState) {
-        console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
+function runSingleScan() {
+  chrome.storage.local.get(['mainToggleState'], (data) => {
+    if (data.mainToggleState) {
+      console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
 
-        scanStartTime = Date.now();
+      scanStartTime = Date.now();
 
-        getCurrentTabDomain((domain) => {
-          currentDomain = domain;
-          // CASE 1
-          if (trancoSet.has(domain)) {
-            // if (false) {
-            console.log(
-              `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${domain}`,
-            );
-            let case1TotalTime = Date.now() - scanStartTime;
-            const case1Data = {
-              resizedDataUrl: 'NA',
-              classification: 'benign',
-              method: `Tranco whitelist - ${domain}`,
-              infTime: 'NA',
-              ocrText: 'NA',
-              ocrTime: 'NA',
-              phash: 'NA',
-              hammingDistance: 'NA',
-              totalTime: case1TotalTime,
-            };
-            chrome.storage.local.set(case1Data, () => {
-              console.log(
-                '[Background] - ' +
-                  getHrTimestamp() +
-                  ' - Local storage updated: (Case 1) Tranco whitelist.',
-              );
-            });
-            console.log(
-              `[Background] - ${getHrTimestamp()} - Case 1 (white list) scan completed in ${case1TotalTime} ms`,
-            );
-            logMessage(
-              `[Background] - case 1 total time: ${case1TotalTime} ms`,
-            );
-
-            saveScreenshot(
-              ssDataUrlRaw,
-              `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
-              `${domain}_wl_${getHrTimestamp()}`,
-            );
-          } else {
+      getCurrentTabDomain((domain) => {
+        currentDomain = domain;
+        // CASE 1
+        if (trancoSet.has(domain)) {
+          // if (false) {
+          console.log(
+            `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${domain}`,
+          );
+          let case1TotalTime = Date.now() - scanStartTime;
+          const case1Data = {
+            resizedDataUrl: 'NA',
+            classification: 'benign',
+            method: `Tranco whitelist - ${domain}`,
+            infTime: 'NA',
+            ocrText: 'NA',
+            ocrTime: 'NA',
+            phash: 'NA',
+            hammingDistance: 'NA',
+            totalTime: case1TotalTime,
+          };
+          chrome.storage.local.set(case1Data, () => {
             console.log(
               '[Background] - ' +
                 getHrTimestamp() +
-                ' - Domain not in Tranco set.',
+                ' - Local storage updated: (Case 1) Tranco whitelist.',
             );
-            startInference();
-          }
-        });
-      } else {
-        console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is OFF.');
-      }
-    });
+          });
+          console.log(
+            `[Background] - ${getHrTimestamp()} - Case 1 (white list) scan completed in ${case1TotalTime} ms`,
+          );
+          logMessage(`[Background] - case 1 total time: ${case1TotalTime} ms`);
+
+          chrome.storage.local.get(
+            ['mainToggleState', 'ssToggleState'],
+            async (data) => {
+              if (data.mainToggleState && data.ssToggleState) {
+                ssDataUrlRaw = await captureScreenshot();
+              }
+            },
+          );
+
+          saveScreenshot(
+            ssDataUrlRaw,
+            `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
+            `${domain}_wl_${getHrTimestamp()}`,
+          );
+        } else {
+          console.log(
+            '[Background] - ' +
+              getHrTimestamp() +
+              ' - Domain not in Tranco set.',
+          );
+          startInference();
+        }
+      });
+    } else {
+      console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is OFF.');
+    }
+  });
+}
+
+function runScans() {
+  scanId = setInterval(() => {
+    runSingleScan();
   }, SCAN_INTERVAL);
 }
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  console.log(
+    '[Background] - ' + getHrTimestamp() + ' Active tab changed running scan!',
+  );
+  if (scanId) {
+    clearInterval(scanId);
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Scanning interval reset.`,
+    );
+  }
+  runSingleScan();
+  runScans();
+});
 
 // Performance logging
 setInterval(() => {

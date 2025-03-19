@@ -1,5 +1,13 @@
 import { getHrTimestamp } from './utils';
 
+function sendModalCompletionMessage(buttonType) {
+  chrome.runtime.sendMessage({
+    type: 'userActionComplete',
+    result: `${buttonType} button was pressed`,
+  });
+  chrome.runtime.sendMessage({ type: 'resumeScans' });
+}
+
 function showDangerModal() {
   console.log('[Content] - ' + getHrTimestamp() + ' showDangerModal called');
 
@@ -79,7 +87,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Ignore Warning button clicked, removing modal overlay',
     );
-    chrome.runtime.sendMessage({ type: 'resumeScans' });
+    sendModalCompletionMessage('Ignore Warning');
     modalOverlay.remove();
   });
 
@@ -99,7 +107,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Return to Safety button clicked, navigating to https://google.com',
     );
-    chrome.runtime.sendMessage({ type: 'resumeScans' });
+    sendModalCompletionMessage('Return to Safety');
     window.location.href = 'https://google.com';
   });
 
@@ -123,7 +131,7 @@ function showDangerModal() {
       let ts = result.classification.split('_')[1];
       chrome.storage.local.set({ classification: `fp_${ts}` });
     });
-    chrome.runtime.sendMessage({ type: 'resumeScans' });
+    sendModalCompletionMessage('Not Malicious');
     modalOverlay.remove();
   });
 
@@ -142,15 +150,15 @@ function showDangerModal() {
   screenshotImg.style.margin = '10px auto';
 
   // Retrieve the screenshot data URL from storage and, if valid, set it as the source.
-  chrome.storage.local.get('dataUrl', (result) => {
+  chrome.storage.local.get('ssDataUrlRaw', (result) => {
     console.log(
       '[Content] - ' +
         getHrTimestamp() +
-        ' dataUrl retrieved from local storage: ',
-      result.dataUrl,
+        ' ssDataUrlRaw retrieved from local storage: ',
+      result.ssDataUrlRaw,
     );
-    if (result.dataUrl && result.dataUrl !== 'NA') {
-      screenshotImg.src = result.dataUrl;
+    if (result.ssDataUrlRaw && result.ssDataUrlRaw !== 'NA') {
+      screenshotImg.src = result.ssDataUrlRaw;
       // Insert the screenshot image into the modal container above the buttons.
       modalContainer.insertBefore(screenshotImg, buttonsContainer);
     } else {
@@ -188,7 +196,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Close button clicked, removing modal overlay',
     );
-    chrome.runtime.sendMessage({ type: 'resumeScans' });
+    sendModalCompletionMessage('Close');
     modalOverlay.remove();
   });
   // Append the close button directly to the overlay so it stays in the top right corner.
