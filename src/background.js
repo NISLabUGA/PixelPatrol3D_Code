@@ -694,15 +694,14 @@ function runSingleScan() {
             ['mainToggleState', 'ssToggleState'],
             async (data) => {
               if (data.mainToggleState && data.ssToggleState) {
-                ssDataUrlRaw = await captureScreenshot();
+                const screenshot = await captureScreenshot();
+                saveScreenshot(
+                  screenshot,
+                  `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
+                  `${domain}_wl_${getHrTimestamp()}`,
+                );
               }
             },
-          );
-
-          saveScreenshot(
-            ssDataUrlRaw,
-            `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
-            `${domain}_wl_${getHrTimestamp()}`,
           );
         } else {
           console.log(
