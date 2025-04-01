@@ -382,12 +382,12 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       let case23TotalTime = Date.now() - scanStartTime;
 
       (async () => {
+        chrome.storage.local.set({ totalTime: case23TotalTime });
         let result = await injectContentScript();
+
         console.log(
           `[Background] - ${getHrTimestamp()} - User action received: ${result}. `,
         );
-
-        chrome.storage.local.set({ totalTime: case23TotalTime });
 
         console.log(
           `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,

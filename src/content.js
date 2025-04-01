@@ -49,19 +49,37 @@ function showDangerModal() {
   modalContainer.style.textAlign = 'center';
   modalContainer.style.width = '30vw';
   modalContainer.style.marginRight = '20px';
+  modalContainer.style.border = '3px solid white';
 
-  // Create the warning message
+  // Create a container for the warning and subtext
+  const warningContainer = document.createElement('div');
+  warningContainer.style.backgroundColor = 'rgba(255, 0, 0)';
+  warningContainer.style.padding = '10px';
+  warningContainer.style.borderRadius = '5px';
+  warningContainer.style.color = 'white';
+  warningContainer.style.fontFamily = 'Roboto, sans-serif';
+  warningContainer.style.fontWeight = 'bold';
+  warningContainer.style.marginBottom = '20px'; // optional spacing from next element
+
+  // Main warning message
   const message = document.createElement('p');
-  message.textContent =
-    'WARNING: This page may be dangerous. Please consider leaving.';
-  message.style.color = 'white';
-  message.style.backgroundColor = 'rgba(255, 0, 0)';
-  message.style.padding = '10px';
-  message.style.borderRadius = '5px';
-  message.style.fontWeight = 'bold';
-  document.body.appendChild(message);
+  message.textContent = '⚠️ WARNING: This page may be unsafe! ⚠️';
+  message.style.margin = '0'; // remove default spacing
+  message.style.fontSize = '1.1em';
 
-  modalContainer.appendChild(message);
+  // Subtext message (smaller)
+  const subtext = document.createElement('p');
+  subtext.textContent =
+    'This site was flagged based on its content and behavior. Be cautious if you choose to proceed.';
+  subtext.style.margin = '5px 0 0 0';
+  subtext.style.fontSize = '0.85em';
+  subtext.style.fontWeight = 'normal';
+
+  // Append both to the container
+  warningContainer.appendChild(message);
+  warningContainer.appendChild(subtext);
+
+  modalContainer.appendChild(warningContainer);
   console.log('[Content] - ' + getHrTimestamp() + ' Warning message added');
 
   // Create a container for the action buttons
@@ -73,12 +91,12 @@ function showDangerModal() {
 
   // "Ignore Warning" button – closes the modal
   const ignoreButton = document.createElement('button');
-  ignoreButton.textContent = 'Ignore Warning';
+  ignoreButton.textContent = 'Continue Anyway (Not Recommended)';
   ignoreButton.style.backgroundColor = 'transparent';
   ignoreButton.style.color = 'white';
   ignoreButton.style.fontWeight = 'bold';
   ignoreButton.style.padding = '10px';
-  ignoreButton.style.border = '2px solid white';
+  ignoreButton.style.border = '2px solid red';
   ignoreButton.style.borderRadius = '5px';
   ignoreButton.style.cursor = 'pointer';
   ignoreButton.addEventListener('click', () => {
@@ -93,12 +111,12 @@ function showDangerModal() {
 
   // "Return to Safety" button – navigates to Google
   const returnButton = document.createElement('button');
-  returnButton.textContent = 'Return to Safety';
+  returnButton.textContent = 'Leave Page Now (Recommended)';
   returnButton.style.backgroundColor = 'transparent';
   returnButton.style.color = 'white';
   returnButton.style.fontWeight = 'bold';
   returnButton.style.padding = '10px';
-  returnButton.style.border = '2px solid white';
+  returnButton.style.border = '2px solid green';
   returnButton.style.borderRadius = '5px';
   returnButton.style.cursor = 'pointer';
   returnButton.addEventListener('click', () => {
@@ -113,12 +131,12 @@ function showDangerModal() {
 
   // "Not Malicious" button – manually overrides malicious page classification
   const notMalButton = document.createElement('button');
-  notMalButton.textContent = 'Not Malicious';
+  notMalButton.textContent = 'This Alert Is a Mistake';
   notMalButton.style.backgroundColor = 'transparent';
   notMalButton.style.color = 'white';
   notMalButton.style.fontWeight = 'bold';
   notMalButton.style.padding = '10px';
-  notMalButton.style.border = '2px solid white';
+  notMalButton.style.border = '2px solid yellow';
   notMalButton.style.borderRadius = '5px';
   notMalButton.style.cursor = 'pointer';
   notMalButton.addEventListener('click', () => {
@@ -135,8 +153,8 @@ function showDangerModal() {
     modalOverlay.remove();
   });
 
-  buttonsContainer.appendChild(ignoreButton);
   buttonsContainer.appendChild(returnButton);
+  buttonsContainer.appendChild(ignoreButton);
   buttonsContainer.appendChild(notMalButton);
 
   // Insert buttons container into modal container
@@ -180,27 +198,27 @@ function showDangerModal() {
       ' Modal overlay appended to document.body',
   );
 
-  // Create the close button in the top right-hand corner of the page
-  const closeButton = document.createElement('button');
-  closeButton.textContent = 'X';
-  closeButton.style.color = 'white';
-  closeButton.style.position = 'fixed';
-  closeButton.style.top = '10px';
-  closeButton.style.right = '10px';
-  closeButton.style.backgroundColor = 'red';
-  closeButton.style.fontSize = '16px';
-  closeButton.style.cursor = 'pointer';
-  closeButton.addEventListener('click', () => {
-    console.log(
-      '[Content] - ' +
-        getHrTimestamp() +
-        ' Close button clicked, removing modal overlay',
-    );
-    sendModalCompletionMessage('Close');
-    modalOverlay.remove();
-  });
-  // Append the close button directly to the overlay so it stays in the top right corner.
-  modalOverlay.appendChild(closeButton);
+  //   // Create the close button in the top right-hand corner of the page
+  //   const closeButton = document.createElement('button');
+  //   closeButton.textContent = 'X';
+  //   closeButton.style.color = 'white';
+  //   closeButton.style.position = 'fixed';
+  //   closeButton.style.top = '10px';
+  //   closeButton.style.right = '10px';
+  //   closeButton.style.backgroundColor = 'red';
+  //   closeButton.style.fontSize = '16px';
+  //   closeButton.style.cursor = 'pointer';
+  //   closeButton.addEventListener('click', () => {
+  //     console.log(
+  //       '[Content] - ' +
+  //         getHrTimestamp() +
+  //         ' Close button clicked, removing modal overlay',
+  //     );
+  //     sendModalCompletionMessage('Close');
+  //     modalOverlay.remove();
+  //   });
+  //   // Append the close button directly to the overlay so it stays in the top right corner.
+  //   modalOverlay.appendChild(closeButton);
 }
 
 // If the DOM is already loaded, run immediately; otherwise, wait for it.
