@@ -412,6 +412,38 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
       return;
     }
+    if (
+      changes.classification &&
+      changes.classification.newValue.split('_')[0] === 'benign'
+    ) {
+      let case23TotalTime = Date.now() - scanStartTime;
+
+      (async () => {
+        chrome.storage.local.set({ totalTime: case23TotalTime });
+
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
+        );
+        logMessage(
+          `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
+        );
+
+        chrome.storage.local.get(
+          ['phash', 'classification', 'currentDomain'],
+          (result) => {
+            saveScreenshot(
+              ssDataUrlRaw,
+              `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+                result.classification.split('_')[0]
+              }`,
+              `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
+            );
+          },
+        );
+      })();
+
+      return;
+    }
   }
 });
 
