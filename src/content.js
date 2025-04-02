@@ -1,3 +1,5 @@
+// src/content.js
+
 import { getHrTimestamp } from './utils';
 
 function sendModalCompletionMessage(buttonType) {
@@ -21,35 +23,54 @@ function showDangerModal() {
     return;
   }
 
+  console.log(
+    '[Content] - ' + getHrTimestamp() + ' Creating style tag in <head>',
+  );
+
+  // 1. Create (or reuse) a <style> element in the <head> for the overlay’s CSS.
+  //    This ensures we can use !important rules to override everything else.
+  const styleTag = document.createElement('style');
+  styleTag.textContent = `
+    #dangerModalOverlay {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: rgba(0, 0, 0, 0.5) !important;
+      z-index: 2147483647 !important; /* Very high value */
+      display: flex !important;
+      justify-content: flex-end !important;
+      align-items: center !important;
+      font-family: Roboto, sans-serif !important;
+    }
+
+    #dangerModalContainer {
+      position: relative !important;
+      background-color: rgba(0, 0, 0, 0.75) !important;
+      padding: 20px !important;
+      border-radius: 5px !important;
+      text-align: center !important;
+      width: 30vw !important;
+      max-width: 30vw !important;
+      margin-right: 20px !important;
+      border: 3px solid white !important;
+      font-family: Roboto, sans-serif !important;
+      font-weight: bold !important;
+    }
+  `;
+  document.head.appendChild(styleTag);
+
   console.log('[Content] - ' + getHrTimestamp() + ' Creating modal overlay');
 
-  // Create the overlay covering the entire page
+  // 2. Create the overlay covering the entire page
   const modalOverlay = document.createElement('div');
   modalOverlay.id = 'dangerModalOverlay';
-  modalOverlay.style.position = 'fixed';
-  modalOverlay.style.top = '0';
-  modalOverlay.style.left = '0';
-  modalOverlay.style.width = '100%';
-  modalOverlay.style.height = '100%';
-  modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-  modalOverlay.style.zIndex = '2147483647';
-  // Shift modal content to the right side
-  modalOverlay.style.display = 'flex';
-  modalOverlay.style.justifyContent = 'flex-end';
-  modalOverlay.style.alignItems = 'center';
-  modalOverlay.style.fontFamily = 'Roboto, sans-serif';
+  // We rely on the injected style's #dangerModalOverlay rules for positioning and z-index.
 
-  // Create the modal container shifted to the right
+  // Create the modal container
   const modalContainer = document.createElement('div');
   modalContainer.id = 'dangerModalContainer';
-  modalContainer.style.position = 'relative';
-  modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-  modalContainer.style.padding = '20px';
-  modalContainer.style.borderRadius = '5px';
-  modalContainer.style.textAlign = 'center';
-  modalContainer.style.width = '30vw';
-  modalContainer.style.marginRight = '20px';
-  modalContainer.style.border = '3px solid white';
 
   // Create a container for the warning and subtext
   const warningContainer = document.createElement('div');
@@ -57,17 +78,13 @@ function showDangerModal() {
   warningContainer.style.padding = '10px';
   warningContainer.style.borderRadius = '5px';
   warningContainer.style.color = 'white';
-  warningContainer.style.fontFamily = 'Roboto, sans-serif';
-  warningContainer.style.fontWeight = 'bold';
-  warningContainer.style.marginBottom = '20px'; // optional spacing from next element
+  warningContainer.style.marginBottom = '20px'; // optional spacing
 
-  // Main warning message
   const message = document.createElement('p');
   message.textContent = '⚠️ WARNING: This page may be unsafe! ⚠️';
-  message.style.margin = '0'; // remove default spacing
+  message.style.margin = '0';
   message.style.fontSize = '1.1em';
 
-  // Subtext message (smaller)
   const subtext = document.createElement('p');
   subtext.textContent =
     'This site was flagged based on its content and behavior. Be cautious if you choose to proceed.';
@@ -75,11 +92,10 @@ function showDangerModal() {
   subtext.style.fontSize = '0.85em';
   subtext.style.fontWeight = 'normal';
 
-  // Append both to the container
   warningContainer.appendChild(message);
   warningContainer.appendChild(subtext);
-
   modalContainer.appendChild(warningContainer);
+
   console.log('[Content] - ' + getHrTimestamp() + ' Warning message added');
 
   // Create a container for the action buttons
@@ -160,14 +176,13 @@ function showDangerModal() {
   // Insert buttons container into modal container
   modalContainer.appendChild(buttonsContainer);
 
-  // **New Code: Retrieve and display the screenshot**
-  // Create an image element to hold the screenshot.
+  // Insert screenshot if available
   const screenshotImg = document.createElement('img');
-  screenshotImg.style.width = '30vw';
+  screenshotImg.style.maxWidth = '100%';
+  screenshotImg.style.height = 'auto';
   screenshotImg.style.display = 'block';
   screenshotImg.style.margin = '10px auto';
 
-  // Retrieve the screenshot data URL from storage and, if valid, set it as the source.
   chrome.storage.local.get('ssDataUrlRaw', (result) => {
     console.log(
       '[Content] - ' +
@@ -188,40 +203,18 @@ function showDangerModal() {
     }
   });
 
+  // Add the container to the overlay and the overlay to the body
   modalOverlay.appendChild(modalContainer);
-
-  // Append the modal overlay to the document body
   document.body.appendChild(modalOverlay);
+
   console.log(
     '[Content] - ' +
       getHrTimestamp() +
       ' Modal overlay appended to document.body',
   );
-
-  //   // Create the close button in the top right-hand corner of the page
-  //   const closeButton = document.createElement('button');
-  //   closeButton.textContent = 'X';
-  //   closeButton.style.color = 'white';
-  //   closeButton.style.position = 'fixed';
-  //   closeButton.style.top = '10px';
-  //   closeButton.style.right = '10px';
-  //   closeButton.style.backgroundColor = 'red';
-  //   closeButton.style.fontSize = '16px';
-  //   closeButton.style.cursor = 'pointer';
-  //   closeButton.addEventListener('click', () => {
-  //     console.log(
-  //       '[Content] - ' +
-  //         getHrTimestamp() +
-  //         ' Close button clicked, removing modal overlay',
-  //     );
-  //     sendModalCompletionMessage('Close');
-  //     modalOverlay.remove();
-  //   });
-  //   // Append the close button directly to the overlay so it stays in the top right corner.
-  //   modalOverlay.appendChild(closeButton);
 }
 
-// If the DOM is already loaded, run immediately; otherwise, wait for it.
+// If the DOM is already loading, run after it's ready; otherwise, run now.
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', showDangerModal);
 } else {
