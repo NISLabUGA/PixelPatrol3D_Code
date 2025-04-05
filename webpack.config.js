@@ -9,7 +9,7 @@ module.exports = {
     sandbox: './src/sandbox.js',
     onnx_worker: './src/onnx_worker.js',
     offscreen: './src/offscreen.js',
-    content: './src/content.js',
+    notification: './src/notification.js',
     utils: './src/utils.js',
   },
   output: {

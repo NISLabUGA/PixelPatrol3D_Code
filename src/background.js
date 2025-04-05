@@ -66,6 +66,133 @@ function saveLogsToFile() {
   });
 }
 
+async function showBrowserNotification() {
+  return new Promise((resolve, reject) => {
+    console.log(`[Background] - Starting showBrowserNotification()`);
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        console.warn('[Background] - No active tab found');
+        return reject('No active tab found');
+      }
+
+      const tab = tabs[0];
+      chrome.windows.get(tab.windowId, { populate: false }, (win) => {
+        if (!win) {
+          console.warn('[Background] - No window found for active tab');
+          return reject('No window found for active tab');
+        }
+
+        const popupWidth = Math.floor(win.width * 0.5);
+        const popupHeight = Math.floor(win.height * 0.5);
+        const top = win.top + Math.floor((win.height - popupHeight) / 2);
+        const left = win.left + Math.floor((win.width - popupWidth) / 2);
+
+        chrome.windows.create(
+          {
+            url: chrome.runtime.getURL('notification.html'),
+            type: 'popup',
+            width: popupWidth,
+            height: popupHeight,
+            top,
+            left,
+            focused: true,
+          },
+          (newWindow) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                '[Background] - Failed to create popup:',
+                chrome.runtime.lastError,
+              );
+              return reject(chrome.runtime.lastError);
+            }
+
+            console.log(
+              `[Background] - Popup window created with ID: ${newWindow.id}`,
+            );
+
+            if (scanId) {
+              clearInterval(scanId);
+              console.log(`[Background] - Scanning paused.`);
+            }
+
+            let actionTaken = false;
+
+            // Listener for message from popup
+            const listener = (message, sender, sendResponse) => {
+              if (message.type === 'userActionComplete') {
+                console.log(
+                  `[Background] - Received userActionComplete message: ${message.result}`,
+                );
+                actionTaken = true;
+
+                chrome.windows.remove(newWindow.id, () => {
+                  if (chrome.runtime.lastError) {
+                    console.warn(
+                      '[Background] - Could not close popup window:',
+                      chrome.runtime.lastError,
+                    );
+                  } else {
+                    console.log(
+                      `[Background] - Popup window with ID ${newWindow.id} closed.`,
+                    );
+                  }
+                });
+
+                if (message.result === 'Return to Safety') {
+                  chrome.tabs.query(
+                    { active: true, currentWindow: true },
+                    (tabs) => {
+                      chrome.tabs.update(tabs[0].id, {
+                        url: 'https://google.com',
+                      });
+                    },
+                  );
+                }
+
+                console.log(
+                  '[Background] - ' +
+                    getHrTimestamp() +
+                    ' - Resuming scan interval upon user interaction with popup',
+                );
+                runScans();
+
+                chrome.runtime.onMessage.removeListener(listener);
+                chrome.windows.onRemoved.removeListener(closedListener);
+                resolve(message.result);
+              }
+            };
+
+            // Listener for manual popup closure (e.g., X button)
+            const closedListener = (closedWindowId) => {
+              if (closedWindowId === newWindow.id && !actionTaken) {
+                console.log(
+                  `[Background] - Popup manually closed (likely via X button)`,
+                );
+
+                chrome.runtime.onMessage.removeListener(listener);
+                chrome.windows.onRemoved.removeListener(closedListener);
+
+                console.log(
+                  '[Background] - ' +
+                    getHrTimestamp() +
+                    ' - Resuming scan interval after manual close',
+                );
+                runScans();
+
+                resolve('Closed Without Action');
+              }
+            };
+
+            chrome.runtime.onMessage.addListener(listener);
+            chrome.windows.onRemoved.addListener(closedListener);
+          },
+        );
+      });
+    });
+  });
+}
+
 // Initializing local data
 const initLocalData = {
   dataUrl: null,
@@ -280,19 +407,6 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
-// For light weight messaging
-// Listening for message to restart webpage scanning
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'resumeScans') {
-    console.log(
-      '[Background] - ' +
-        getHrTimestamp() +
-        ' - Resuming scan interval upon user interaction with popup',
-    );
-    runScans();
-  }
-});
-
 ////// FUNCTIONS
 
 async function saveScreenshot(dataUrl, baseDir, filename) {
@@ -332,49 +446,8 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
   );
 }
 
-async function injectContentScript() {
-  return new Promise((resolve, reject) => {
-    // Query for the active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs || tabs.length === 0) {
-        return reject(new Error('No active tab found'));
-      }
-      const tabId = tabs[0].id;
-      // Inject content.js into the active tab
-      chrome.scripting.executeScript(
-        {
-          target: { tabId },
-          files: ['content.js'],
-        },
-        () => {
-          if (chrome.runtime.lastError) {
-            return reject(chrome.runtime.lastError);
-          }
-          if (scanId) {
-            clearInterval(scanId);
-            console.log(
-              `[Background] - ${getHrTimestamp()} - Scanning paused.`,
-            );
-          }
-          // Set up a one-time listener waiting for the button press message
-          const listener = (message, sender, sendResponse) => {
-            if (message.type === 'userActionComplete') {
-              // Remove listener to avoid duplicate handling
-              chrome.runtime.onMessage.removeListener(listener);
-              // Resolve with any result you want to pass back
-              resolve(message.result);
-            }
-          };
-          chrome.runtime.onMessage.addListener(listener);
-        },
-      );
-    });
-  });
-}
-
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
-    // Injection content script if new malicious page is detected
     if (
       changes.classification &&
       changes.classification.newValue.split('_')[0] === 'malicious'
@@ -383,7 +456,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
       (async () => {
         chrome.storage.local.set({ totalTime: case23TotalTime });
-        let result = await injectContentScript();
+        let result = await showBrowserNotification();
 
         console.log(
           `[Background] - ${getHrTimestamp()} - User action received: ${result}. `,
