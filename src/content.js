@@ -2,6 +2,11 @@
 
 import { getHrTimestamp } from './utils';
 
+const MAX_Z = 2147483647;
+
+// Track whether the user explicitly closed the modal (so we don't resurrect it).
+let userClosedModal = false;
+
 function sendModalCompletionMessage(buttonType) {
   chrome.runtime.sendMessage({
     type: 'userActionComplete',
@@ -27,18 +32,22 @@ function showDangerModal() {
     '[Content] - ' + getHrTimestamp() + ' Creating style tag in <head>',
   );
 
-  // 1. Create (or reuse) a <style> element in the <head> for the overlay’s CSS.
-  //    This ensures we can use !important rules to override everything else.
+  const html = document.documentElement;
+  html.style.zIndex = '0'; // Ensure it’s below your modal
+  html.style.pointerEvents = 'auto'; // Prevent it from eating clicks
+
+  // Create a <style> element for the overlay’s CSS so !important rules can override everything else.
   const styleTag = document.createElement('style');
   styleTag.textContent = `
     #dangerModalOverlay {
       position: fixed !important;
+      pointer-events: auto !important; 
       top: 0 !important;
       left: 0 !important;
       width: 100% !important;
       height: 100% !important;
       background-color: rgba(0, 0, 0, 0.5) !important;
-      z-index: 2147483647 !important; /* Very high value */
+      z-index: ${MAX_Z} !important; /* Very high value */
       display: flex !important;
       justify-content: flex-end !important;
       align-items: center !important;
@@ -63,10 +72,9 @@ function showDangerModal() {
 
   console.log('[Content] - ' + getHrTimestamp() + ' Creating modal overlay');
 
-  // 2. Create the overlay covering the entire page
+  // Create the overlay covering the entire page
   const modalOverlay = document.createElement('div');
   modalOverlay.id = 'dangerModalOverlay';
-  // We rely on the injected style's #dangerModalOverlay rules for positioning and z-index.
 
   // Create the modal container
   const modalContainer = document.createElement('div');
@@ -121,6 +129,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Ignore Warning button clicked, removing modal overlay',
     );
+    userClosedModal = true; // user explicitly closed
     sendModalCompletionMessage('Ignore Warning');
     modalOverlay.remove();
   });
@@ -141,6 +150,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Return to Safety button clicked, navigating to https://google.com',
     );
+    userClosedModal = true; // user explicitly closed
     sendModalCompletionMessage('Return to Safety');
     window.location.href = 'https://google.com';
   });
@@ -161,6 +171,7 @@ function showDangerModal() {
         getHrTimestamp() +
         ' Not malicious button clicked, changing classification to false positive ("fp")',
     );
+    userClosedModal = true; // user explicitly closed
     chrome.storage.local.get(['classification'], (result) => {
       let ts = result.classification.split('_')[1];
       chrome.storage.local.set({ classification: `fp_${ts}` });
@@ -169,6 +180,7 @@ function showDangerModal() {
     modalOverlay.remove();
   });
 
+  // Append buttons to the container
   buttonsContainer.appendChild(returnButton);
   buttonsContainer.appendChild(ignoreButton);
   buttonsContainer.appendChild(notMalButton);
@@ -205,16 +217,58 @@ function showDangerModal() {
 
   // Add the container to the overlay and the overlay to the body
   modalOverlay.appendChild(modalContainer);
-  document.body.appendChild(modalOverlay);
+  document.documentElement.appendChild(modalOverlay);
 
   console.log(
     '[Content] - ' +
       getHrTimestamp() +
-      ' Modal overlay appended to document.body',
+      ' Modal overlay appended to document.element',
   );
+
+  // =======================================================================
+  // PERIODICALLY RE-APPLY STYLES / RE-INJECT OVERLAY IF THE PAGE REMOVES IT
+  // =======================================================================
+  setInterval(() => {
+    // If the user explicitly closed the modal, do nothing
+    if (userClosedModal) {
+      return;
+    }
+
+    // If the modal overlay was removed by the page, re-inject it
+    const existingOverlay = document.getElementById('dangerModalOverlay');
+    if (!existingOverlay) {
+      document.documentElement.appendChild(modalOverlay);
+    } else {
+      // Re-apply essential styles
+      existingOverlay.style.position = 'fixed';
+      existingOverlay.style.pointerEvents = 'auto';
+      existingOverlay.style.top = '0';
+      existingOverlay.style.left = '0';
+      existingOverlay.style.width = '100%';
+      existingOverlay.style.height = '100%';
+      existingOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+      existingOverlay.style.zIndex = `${MAX_Z}`;
+      existingOverlay.style.display = 'flex';
+      existingOverlay.style.justifyContent = 'flex-end';
+      existingOverlay.style.alignItems = 'center';
+      existingOverlay.style.fontFamily = 'Roboto, sans-serif';
+    }
+
+    [...document.documentElement.children].forEach((el) => {
+      // Ignore <head> and your own overlay
+      if (el.tagName === 'HEAD' || el.id === 'dangerModalOverlay') return;
+
+      const z = window.getComputedStyle(el).zIndex;
+
+      if (z && !isNaN(z) && parseInt(z) >= MAX_Z) {
+        console.warn('[Extension] Removing high z-index element:', el);
+        el.remove();
+      }
+    });
+  }, 100);
 }
 
-// If the DOM is already loading, run after it's ready; otherwise, run now.
+// Run after DOM is ready if the document is still loading
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', showDangerModal);
 } else {
