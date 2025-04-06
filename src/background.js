@@ -68,11 +68,15 @@ function saveLogsToFile() {
 
 async function showBrowserNotification() {
   return new Promise((resolve, reject) => {
-    console.log(`[Background] - Starting showBrowserNotification()`);
+    console.log(
+      '[Background]  - ' +
+        getHrTimestamp() +
+        ' -  Showing browser notification',
+    );
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs || tabs.length === 0) {
-        console.warn('[Background] - No active tab found');
+        console.warn('[Background]  -  No active tab found');
         return reject('No active tab found');
       }
 
@@ -108,12 +112,16 @@ async function showBrowserNotification() {
             }
 
             console.log(
-              `[Background] - Popup window created with ID: ${newWindow.id}`,
+              `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
+                newWindow.id
+              }`,
             );
 
             if (scanId) {
               clearInterval(scanId);
-              console.log(`[Background] - Scanning paused.`);
+              console.log(
+                '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
+              );
             }
 
             let actionTaken = false;
@@ -122,7 +130,9 @@ async function showBrowserNotification() {
             const listener = (message, sender, sendResponse) => {
               if (message.type === 'userActionComplete') {
                 console.log(
-                  `[Background] - Received userActionComplete message: ${message.result}`,
+                  `[Background] - ${getHrTimestamp()}- Received userActionComplete message: ${
+                    message.result
+                  }`,
                 );
                 actionTaken = true;
 
@@ -134,7 +144,9 @@ async function showBrowserNotification() {
                     );
                   } else {
                     console.log(
-                      `[Background] - Popup window with ID ${newWindow.id} closed.`,
+                      `[Background] - ${getHrTimestamp()} - Popup window with ID ${
+                        newWindow.id
+                      } closed.`,
                     );
                   }
                 });
@@ -167,7 +179,9 @@ async function showBrowserNotification() {
             const closedListener = (closedWindowId) => {
               if (closedWindowId === newWindow.id && !actionTaken) {
                 console.log(
-                  `[Background] - Popup manually closed (likely via X button)`,
+                  '[Background]  - ' +
+                    getHrTimestamp() +
+                    ' -  Popup manually closed (likely via X button)',
                 );
 
                 chrome.runtime.onMessage.removeListener(listener);
@@ -326,6 +340,16 @@ chrome.runtime.onConnect.addListener((port) => {
           `[Background] - pure all inference time: ${pureAllInfTotalTime} ms`,
         );
 
+        let case23TotalTime = Date.now() - scanStartTime;
+        chrome.storage.local.set({ totalTime: case23TotalTime });
+
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
+        );
+        logMessage(
+          `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
+        );
+
         const infData = {
           resizedDataUrl: message.data.resizedDataUrl, // For the screenshot <img>
           classification: message.data.classification + '_' + Date.now(),
@@ -452,21 +476,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.classification &&
       changes.classification.newValue.split('_')[0] === 'malicious'
     ) {
-      let case23TotalTime = Date.now() - scanStartTime;
-
       (async () => {
-        chrome.storage.local.set({ totalTime: case23TotalTime });
         let result = await showBrowserNotification();
 
         console.log(
           `[Background] - ${getHrTimestamp()} - User action received: ${result}. `,
-        );
-
-        console.log(
-          `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
-        );
-        logMessage(
-          `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
         );
 
         chrome.storage.local.get(
@@ -489,18 +503,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.classification &&
       changes.classification.newValue.split('_')[0] === 'benign'
     ) {
-      let case23TotalTime = Date.now() - scanStartTime;
-
       (async () => {
-        chrome.storage.local.set({ totalTime: case23TotalTime });
-
-        console.log(
-          `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
-        );
-        logMessage(
-          `[Background] - case 2 or 3 total time: ${case23TotalTime} ms`,
-        );
-
         chrome.storage.local.get(
           ['phash', 'classification', 'currentDomain'],
           (result) => {
@@ -774,7 +777,7 @@ function runSingleScan() {
           let case1TotalTime = Date.now() - scanStartTime;
           const case1Data = {
             resizedDataUrl: 'NA',
-            classification: 'benign',
+            classification: `benign_${getHrTimestamp()}`,
             method: `Tranco whitelist - ${domain}`,
             infTime: 'NA',
             ocrText: 'NA',
