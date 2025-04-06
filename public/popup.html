@@ -11,7 +11,10 @@
       <div>
         <h1>Pixel Prowler</h1>
         <h3>The web threat detection extension!</h3>
-        <button id="mainToggle" class="normal-btn on">ON</button>
+        <div style="display: flex; justify-content: center; gap: 10px">
+          <button id="mainToggle" class="normal-btn on">ON</button>
+          <button id="resetButton" class="normal-btn reset-btn">RESET</button>
+        </div>
       </div>
 
       <div class="container-small-btn">
@@ -23,6 +26,10 @@
             OFF
           </button>
         </div>
+      </div>
+      <div class="grid-container">
+        <span id="userAgentSelectLabel" class="h3-custom">User Agent:</span>
+        <select id="userAgentSelect"></select>
       </div>
 
       <div id="inferenceResults">

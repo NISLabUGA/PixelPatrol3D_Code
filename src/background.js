@@ -2,31 +2,17 @@
 
 ////// INITIALIZATION
 
+// Imports
 import blockhash from 'blockhash-core';
 import { parse } from 'tldts';
 import { getHrTimestamp } from './utils';
 
 // Global settings
+const mainExtDownloadDir = 'pp_ext';
 const HASH_GRID_SIZE = 8;
 const HAMMING_DIST_THOLD = 3;
 const SCAN_INTERVAL = 5 * 1000;
 const SAVE_INTERVAL = 30 * 1000;
-
-// Global variables
-
-const mainExtDownloadDir = 'pp_ext';
-let sessionStartTime = Date.now();
-let sessionStartTimeHr = getHrTimestamp();
-let scanStartTime = 0;
-let pureAllInfStartTime = 0;
-let scanId = null;
-
-let ssDataUrlRaw = null;
-let currentDomain = null;
-
-let offscreenPort = null;
-let trancoSet = new Set();
-let logs = [];
 
 function logMessage(message) {
   chrome.storage.local.get(
@@ -65,173 +51,6 @@ function saveLogsToFile() {
     chrome.storage.local.set({ logs: [] });
   });
 }
-
-async function showBrowserNotification() {
-  return new Promise((resolve, reject) => {
-    console.log(
-      '[Background]  - ' +
-        getHrTimestamp() +
-        ' -  Showing browser notification',
-    );
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs || tabs.length === 0) {
-        console.warn('[Background]  -  No active tab found');
-        return reject('No active tab found');
-      }
-
-      const tab = tabs[0];
-      chrome.windows.get(tab.windowId, { populate: false }, (win) => {
-        if (!win) {
-          console.warn('[Background] - No window found for active tab');
-          return reject('No window found for active tab');
-        }
-
-        const popupWidth = Math.floor(win.width * 0.5);
-        const popupHeight = Math.floor(win.height * 0.5);
-        const top = win.top + Math.floor((win.height - popupHeight) / 2);
-        const left = win.left + Math.floor((win.width - popupWidth) / 2);
-
-        chrome.windows.create(
-          {
-            url: chrome.runtime.getURL('notification.html'),
-            type: 'popup',
-            width: popupWidth,
-            height: popupHeight,
-            top,
-            left,
-            focused: true,
-          },
-          (newWindow) => {
-            if (chrome.runtime.lastError) {
-              console.error(
-                '[Background] - Failed to create popup:',
-                chrome.runtime.lastError,
-              );
-              return reject(chrome.runtime.lastError);
-            }
-
-            console.log(
-              `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
-                newWindow.id
-              }`,
-            );
-
-            if (scanId) {
-              clearInterval(scanId);
-              console.log(
-                '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
-              );
-            }
-
-            let actionTaken = false;
-
-            // Listener for message from popup
-            const listener = (message, sender, sendResponse) => {
-              if (message.type === 'userActionComplete') {
-                console.log(
-                  `[Background] - ${getHrTimestamp()}- Received userActionComplete message: ${
-                    message.result
-                  }`,
-                );
-                actionTaken = true;
-
-                chrome.windows.remove(newWindow.id, () => {
-                  if (chrome.runtime.lastError) {
-                    console.warn(
-                      '[Background] - Could not close popup window:',
-                      chrome.runtime.lastError,
-                    );
-                  } else {
-                    console.log(
-                      `[Background] - ${getHrTimestamp()} - Popup window with ID ${
-                        newWindow.id
-                      } closed.`,
-                    );
-                  }
-                });
-
-                if (message.result === 'Return to Safety') {
-                  chrome.tabs.query(
-                    { active: true, currentWindow: true },
-                    (tabs) => {
-                      chrome.tabs.update(tabs[0].id, {
-                        url: 'https://google.com',
-                      });
-                    },
-                  );
-                }
-
-                console.log(
-                  '[Background] - ' +
-                    getHrTimestamp() +
-                    ' - Resuming scan interval upon user interaction with popup',
-                );
-                runScans();
-
-                chrome.runtime.onMessage.removeListener(listener);
-                chrome.windows.onRemoved.removeListener(closedListener);
-                resolve(message.result);
-              }
-            };
-
-            // Listener for manual popup closure (e.g., X button)
-            const closedListener = (closedWindowId) => {
-              if (closedWindowId === newWindow.id && !actionTaken) {
-                console.log(
-                  '[Background]  - ' +
-                    getHrTimestamp() +
-                    ' -  Popup manually closed (likely via X button)',
-                );
-
-                chrome.runtime.onMessage.removeListener(listener);
-                chrome.windows.onRemoved.removeListener(closedListener);
-
-                console.log(
-                  '[Background] - ' +
-                    getHrTimestamp() +
-                    ' - Resuming scan interval after manual close',
-                );
-                runScans();
-
-                resolve('Closed Without Action');
-              }
-            };
-
-            chrome.runtime.onMessage.addListener(listener);
-            chrome.windows.onRemoved.addListener(closedListener);
-          },
-        );
-      });
-    });
-  });
-}
-
-// Initializing local data
-const initLocalData = {
-  dataUrl: null,
-  mainToggleState: false,
-  ssToggleState: false,
-  performanceToggleState: true,
-  backgroundInitialized: false,
-  offscreenInitialized: false,
-  resizedDataUrl: null,
-  classification: null,
-  method: null,
-  infTime: null,
-  ocrText: null,
-  ocrTime: null,
-  totalTime: null,
-  phash: null,
-  hammingDistance: null,
-};
-
-// Store the values in chrome.storage.local
-chrome.storage.local.set(initLocalData, () => {
-  console.log(
-    '[Background] - ' + getHrTimestamp() + ' - Local storage initialized',
-  );
-});
 
 // Tranco list init
 function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
@@ -278,6 +97,155 @@ function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
       .catch((error) => reject(`Fetch Error: ${error}`));
   });
 }
+
+// Ensuring offscreen document is avaliable
+async function ensureOffscreen() {
+  if (!chrome.offscreen) {
+    console.warn(
+      'chrome.offscreen API is not available. Offscreen inference will not work!',
+    );
+    return false;
+  }
+  try {
+    const hasDocument = await chrome.offscreen.hasDocument();
+    if (!hasDocument) {
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: ['WORKERS'],
+        justification: 'Needed to run ONNX inference',
+      });
+      console.log(
+        '[Background] - ' + getHrTimestamp() + ' - Offscreen document created.',
+      );
+    } else {
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Offscreen document already exists.',
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error(
+      '[Background] - ' +
+        getHrTimestamp() +
+        ' - Error ensuring offscreen document:',
+      err,
+    );
+    return false;
+  }
+}
+
+// Global variables
+let sessionStartTime = Date.now();
+let sessionStartTimeHr = getHrTimestamp();
+let scanStartTime = 0;
+let pureAllInfStartTime = 0;
+let scanId = null;
+let ssDataUrlRaw = null;
+let currentDomain = null;
+let offscreenPort = null;
+let trancoSet = new Set();
+let logs = [];
+let currentUserAgent = 'default';
+
+// Local storage variables
+const initLocalData = {
+  dataUrl: null,
+  mainToggleState: false,
+  ssToggleState: false,
+  performanceToggleState: true,
+  backgroundInitialized: false,
+  offscreenInitialized: false,
+  resizedDataUrl: null,
+  classification: null,
+  method: null,
+  infTime: null,
+  ocrText: null,
+  ocrTime: null,
+  totalTime: null,
+  phash: null,
+  hammingDistance: null,
+};
+
+// Add UA update listener
+chrome.runtime.onInstalled.addListener(() => {
+  updateUserAgentRule();
+});
+
+function updateUserAgentRule() {
+  const ruleId = 1;
+
+  chrome.declarativeNetRequest.updateDynamicRules(
+    {
+      removeRuleIds: [ruleId],
+      addRules:
+        currentUserAgent === 'default'
+          ? []
+          : [
+              {
+                id: ruleId,
+                priority: 1,
+                action: {
+                  type: 'modifyHeaders',
+                  requestHeaders: [
+                    {
+                      header: 'User-Agent',
+                      operation: 'set',
+                      value: currentUserAgent,
+                    },
+                  ],
+                },
+                condition: {
+                  urlFilter: '|http*://*',
+                  resourceTypes: ['main_frame'],
+                },
+              },
+            ],
+    },
+    () => {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to update UA rule:', chrome.runtime.lastError);
+      } else {
+        console.log('Updated UA rule:', currentUserAgent);
+      }
+    },
+  );
+}
+
+// Listen for changes to UA
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.selectedUserAgentString) {
+    currentUserAgent = changes.selectedUserAgentString.newValue || 'default';
+    updateUserAgentRule();
+  }
+});
+
+// Updating user agent on selection change
+
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  function (details) {
+    // Only override if it's not "default"
+    if (!currentUserAgent || currentUserAgent === 'default') {
+      return {};
+    }
+
+    const headers = details.requestHeaders.map((header) => {
+      if (header.name.toLowerCase() === 'user-agent') {
+        return { name: 'User-Agent', value: currentUserAgent };
+      }
+      return header;
+    });
+
+    if (!headers.some((h) => h.name.toLowerCase() === 'user-agent')) {
+      headers.push({ name: 'User-Agent', value: currentUserAgent });
+    }
+
+    return { requestHeaders: headers };
+  },
+  { urls: ['<all_urls>'] },
+  ['blocking', 'requestHeaders'],
+);
 
 // Initialization for background
 async function initBackground() {
@@ -431,7 +399,18 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
-////// FUNCTIONS
+////// EXTENSION RELOAD LOGIC
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'resetExtension') {
+    chrome.storage.local.clear(() => {
+      chrome.runtime.reload();
+    });
+    console.log('[Background] - ' + getHrTimestamp() + ' - Extension reset.');
+  }
+});
+
+////// MAIN CODE FUNCTIONS
 
 async function saveScreenshot(dataUrl, baseDir, filename) {
   chrome.storage.local.get(
@@ -468,6 +447,147 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
       }
     },
   );
+}
+
+async function showBrowserNotification() {
+  return new Promise((resolve, reject) => {
+    console.log(
+      '[Background]  - ' +
+        getHrTimestamp() +
+        ' -  Showing browser notification',
+    );
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        console.warn('[Background]  -  No active tab found');
+        return reject('No active tab found');
+      }
+
+      const tab = tabs[0];
+      chrome.windows.get(tab.windowId, { populate: false }, (win) => {
+        if (!win) {
+          console.warn('[Background] - No window found for active tab');
+          return reject('No window found for active tab');
+        }
+
+        const popupWidth = Math.floor(win.width * 0.5);
+        const popupHeight = Math.floor(win.height * 0.5);
+        const top = win.top + Math.floor((win.height - popupHeight) / 2);
+        const left = win.left + Math.floor((win.width - popupWidth) / 2);
+
+        chrome.windows.create(
+          {
+            url: chrome.runtime.getURL('notification.html'),
+            type: 'popup',
+            width: popupWidth,
+            height: popupHeight,
+            top,
+            left,
+            focused: true,
+          },
+          (newWindow) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                '[Background] - Failed to create popup:',
+                chrome.runtime.lastError,
+              );
+              return reject(chrome.runtime.lastError);
+            }
+
+            console.log(
+              `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
+                newWindow.id
+              }`,
+            );
+
+            if (scanId) {
+              clearInterval(scanId);
+              console.log(
+                '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
+              );
+            }
+
+            let actionTaken = false;
+
+            // Listener for message from popup
+            const listener = (message, sender, sendResponse) => {
+              if (message.type === 'userActionComplete') {
+                console.log(
+                  `[Background] - ${getHrTimestamp()}- Received userActionComplete message: ${
+                    message.result
+                  }`,
+                );
+                actionTaken = true;
+
+                chrome.windows.remove(newWindow.id, () => {
+                  if (chrome.runtime.lastError) {
+                    console.warn(
+                      '[Background] - Could not close popup window:',
+                      chrome.runtime.lastError,
+                    );
+                  } else {
+                    console.log(
+                      `[Background] - ${getHrTimestamp()} - Popup window with ID ${
+                        newWindow.id
+                      } closed.`,
+                    );
+                  }
+                });
+
+                if (message.result === 'Return to Safety') {
+                  chrome.tabs.query(
+                    { active: true, currentWindow: true },
+                    (tabs) => {
+                      chrome.tabs.update(tabs[0].id, {
+                        url: 'https://google.com',
+                      });
+                    },
+                  );
+                }
+
+                console.log(
+                  '[Background] - ' +
+                    getHrTimestamp() +
+                    ' - Resuming scan interval upon user interaction with popup',
+                );
+                runScans();
+
+                chrome.runtime.onMessage.removeListener(listener);
+                chrome.windows.onRemoved.removeListener(closedListener);
+                resolve(message.result);
+              }
+            };
+
+            // Listener for manual popup closure (e.g., X button)
+            const closedListener = (closedWindowId) => {
+              if (closedWindowId === newWindow.id && !actionTaken) {
+                console.log(
+                  '[Background]  - ' +
+                    getHrTimestamp() +
+                    ' -  Popup manually closed (likely via X button)',
+                );
+
+                chrome.runtime.onMessage.removeListener(listener);
+                chrome.windows.onRemoved.removeListener(closedListener);
+
+                console.log(
+                  '[Background] - ' +
+                    getHrTimestamp() +
+                    ' - Resuming scan interval after manual close',
+                );
+                runScans();
+
+                resolve('Closed Without Action');
+              }
+            };
+
+            chrome.runtime.onMessage.addListener(listener);
+            chrome.windows.onRemoved.addListener(closedListener);
+          },
+        );
+      });
+    });
+  });
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -522,43 +642,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
   }
 });
-
-async function ensureOffscreen() {
-  if (!chrome.offscreen) {
-    console.warn(
-      'chrome.offscreen API is not available. Offscreen inference will not work!',
-    );
-    return false;
-  }
-  try {
-    const hasDocument = await chrome.offscreen.hasDocument();
-    if (!hasDocument) {
-      await chrome.offscreen.createDocument({
-        url: 'offscreen.html',
-        reasons: ['WORKERS'],
-        justification: 'Needed to run ONNX inference',
-      });
-      console.log(
-        '[Background] - ' + getHrTimestamp() + ' - Offscreen document created.',
-      );
-    } else {
-      console.log(
-        '[Background] - ' +
-          getHrTimestamp() +
-          ' - Offscreen document already exists.',
-      );
-    }
-    return true;
-  } catch (err) {
-    console.error(
-      '[Background] - ' +
-        getHrTimestamp() +
-        ' - Error ensuring offscreen document:',
-      err,
-    );
-    return false;
-  }
-}
 
 function captureScreenshot() {
   console.log(
