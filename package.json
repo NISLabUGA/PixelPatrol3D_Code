@@ -23,6 +23,7 @@
     "blockhash-core": "^0.1.0",
     "onnxruntime-web": "^1.20.1",
     "tesseract.js": "^4.1.4",
-    "tldts": "^6.1.84"
+    "tldts": "^6.1.84",
+    "webextension-polyfill": "^0.12.0"
   }
 }

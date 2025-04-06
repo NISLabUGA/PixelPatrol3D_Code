@@ -3,6 +3,7 @@
 ////// INITIALIZATION
 
 // Imports
+import browser from 'webextension-polyfill';
 import blockhash from 'blockhash-core';
 import { parse } from 'tldts';
 import { getHrTimestamp } from './utils';
@@ -14,46 +15,46 @@ const HAMMING_DIST_THOLD = 3;
 const SCAN_INTERVAL = 5 * 1000;
 const SAVE_INTERVAL = 30 * 1000;
 
-function logMessage(message) {
-  chrome.storage.local.get(
-    ['mainToggleState', 'performanceToggleState'],
-    (result) => {
-      if (result.performanceToggleState) {
-        let timestampedMessage = `[${new Date().toISOString()}] - ${message}`;
-        logs.push(timestampedMessage);
+async function logMessage(message) {
+  try {
+    const result = await browser.storage.local.get([
+      'mainToggleState',
+      'performanceToggleState',
+    ]);
 
-        // Update storage with the full logs array.
-        chrome.storage.local.set({ logs }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Error updating logs:', chrome.runtime.lastError);
-          }
-        });
-        // console.log(timestampedMessage);
-      }
-    },
-  );
+    if (result.performanceToggleState) {
+      const timestampedMessage = `[${new Date().toISOString()}] - ${message}`;
+      logs.push(timestampedMessage);
+
+      await browser.storage.local.set({ logs });
+      // console.log(timestampedMessage);
+    }
+  } catch (error) {
+    console.error('Error updating logs:', error);
+  }
 }
 
-function saveLogsToFile() {
-  chrome.storage.local.get({ logs: [] }, (result) => {
-    let logText = result.logs.join('\n');
-    // Create a data URL from the log text
-    let url = 'data:text/plain;charset=utf-8,' + encodeURIComponent(logText);
+async function saveLogsToFile() {
+  try {
+    const result = await browser.storage.local.get({ logs: [] });
+    const logText = result.logs.join('\n');
+    const url = 'data:text/plain;charset=utf-8,' + encodeURIComponent(logText);
 
-    chrome.downloads.download({
+    await browser.downloads.download({
       url: url,
       filename: `${mainExtDownloadDir}/${sessionStartTimeHr}/logs/performance_${getHrTimestamp()}.txt`,
       saveAs: false,
     });
 
-    // Clear logs after saving (optional)
+    // Clear logs after saving
     logs = [];
-    chrome.storage.local.set({ logs: [] });
-  });
+    await browser.storage.local.set({ logs: [] });
+  } catch (error) {
+    console.error('Error saving logs to file:', error);
+  }
 }
 
-// Tranco list init
-function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
+async function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -90,26 +91,25 @@ function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
 
     reader.onerror = () => reject('Error reading the file.');
 
-    // Fetch and read the CSV file
-    fetch(chrome.runtime.getURL(filePath))
+    fetch(browser.runtime.getURL(filePath))
       .then((response) => response.blob())
       .then((blob) => reader.readAsText(blob))
       .catch((error) => reject(`Fetch Error: ${error}`));
   });
 }
 
-// Ensuring offscreen document is avaliable
 async function ensureOffscreen() {
-  if (!chrome.offscreen) {
+  if (!browser.offscreen) {
     console.warn(
-      'chrome.offscreen API is not available. Offscreen inference will not work!',
+      'browser.offscreen API is not available. Offscreen inference will not work!',
     );
     return false;
   }
+
   try {
-    const hasDocument = await chrome.offscreen.hasDocument();
+    const hasDocument = await browser.offscreen.hasDocument();
     if (!hasDocument) {
-      await chrome.offscreen.createDocument({
+      await browser.offscreen.createDocument({
         url: 'offscreen.html',
         reasons: ['WORKERS'],
         justification: 'Needed to run ONNX inference',
@@ -168,16 +168,11 @@ const initLocalData = {
   hammingDistance: null,
 };
 
-// Add UA update listener
-chrome.runtime.onInstalled.addListener(() => {
-  updateUserAgentRule();
-});
-
 function updateUserAgentRule() {
   const ruleId = 1;
 
-  chrome.declarativeNetRequest.updateDynamicRules(
-    {
+  browser.declarativeNetRequest
+    .updateDynamicRules({
       removeRuleIds: [ruleId],
       addRules:
         currentUserAgent === 'default'
@@ -202,55 +197,33 @@ function updateUserAgentRule() {
                 },
               },
             ],
-    },
-    () => {
-      if (chrome.runtime.lastError) {
-        console.error('Failed to update UA rule:', chrome.runtime.lastError);
-      } else {
-        console.log('Updated UA rule:', currentUserAgent);
-      }
-    },
-  );
+    })
+    .then(() => {
+      console.log('Updated UA rule:', currentUserAgent);
+    })
+    .catch((error) => {
+      console.error('Failed to update UA rule:', error);
+    });
 }
 
+// Add UA update listener
+browser.runtime.onInstalled.addListener(() => {
+  updateUserAgentRule();
+});
+
 // Listen for changes to UA
-chrome.storage.onChanged.addListener((changes, area) => {
+browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.selectedUserAgentString) {
     currentUserAgent = changes.selectedUserAgentString.newValue || 'default';
     updateUserAgentRule();
   }
 });
 
-// Updating user agent on selection change
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  function (details) {
-    // Only override if it's not "default"
-    if (!currentUserAgent || currentUserAgent === 'default') {
-      return {};
-    }
-
-    const headers = details.requestHeaders.map((header) => {
-      if (header.name.toLowerCase() === 'user-agent') {
-        return { name: 'User-Agent', value: currentUserAgent };
-      }
-      return header;
-    });
-
-    if (!headers.some((h) => h.name.toLowerCase() === 'user-agent')) {
-      headers.push({ name: 'User-Agent', value: currentUserAgent });
-    }
-
-    return { requestHeaders: headers };
-  },
-  { urls: ['<all_urls>'] },
-  ['blocking', 'requestHeaders'],
-);
-
 // Initialization for background
 async function initBackground() {
   try {
     let initBackgroundStartTime = Date.now();
+
     // Creating offscreen doc
     let offscreenCreateStartTime = Date.now();
     await ensureOffscreen();
@@ -261,6 +234,7 @@ async function initBackground() {
     logMessage(
       `[Background] - offscreen doc creation time: ${offscreenCreateTotalTime} ms`,
     );
+
     // Load Tranco list at extension startup
     let loadTrancoStartTime = Date.now();
     let size = await loadTrancoIntoMemory();
@@ -271,10 +245,12 @@ async function initBackground() {
     logMessage(
       `[Background] - tranco list load time: ${loadTrancoTotalTime} ms`,
     );
-    chrome.storage.local.set({ backgroundInitialized: true });
+
+    await browser.storage.local.set({ backgroundInitialized: true });
+
     let initBackgroundTotalTime = Date.now() - initBackgroundStartTime;
     console.log(
-      `[Background] - ${getHrTimestamp()} - Backgroung initialized in ${initBackgroundTotalTime} ms`,
+      `[Background] - ${getHrTimestamp()} - Background initialized in ${initBackgroundTotalTime} ms`,
     );
     logMessage(
       `[Background] - background init time: ${initBackgroundTotalTime} ms`,
@@ -286,7 +262,7 @@ async function initBackground() {
 initBackground();
 
 // Setting up message passing ports for heavier and more frequent messaging
-chrome.runtime.onConnect.addListener((port) => {
+browser.runtime.onConnect.addListener((port) => {
   console.log(
     `[Background] - ${getHrTimestamp()} - Connected to: ${port.name}`,
   );
@@ -309,7 +285,7 @@ chrome.runtime.onConnect.addListener((port) => {
         );
 
         let case23TotalTime = Date.now() - scanStartTime;
-        chrome.storage.local.set({ totalTime: case23TotalTime });
+        browser.storage.local.set({ totalTime: case23TotalTime });
 
         console.log(
           `[Background] - ${getHrTimestamp()} - Case 2 or 3 (phash = null | phash > thold) scan completed in ${case23TotalTime} ms.`,
@@ -319,7 +295,7 @@ chrome.runtime.onConnect.addListener((port) => {
         );
 
         const infData = {
-          resizedDataUrl: message.data.resizedDataUrl, // For the screenshot <img>
+          resizedDataUrl: message.data.resizedDataUrl,
           classification: message.data.classification + '_' + Date.now(),
           method: 'Model inference',
           infTime: message.data.infTime,
@@ -335,6 +311,7 @@ chrome.runtime.onConnect.addListener((port) => {
         logMessage(
           `[Background] - pure onnx inference time: ${message.data.infTime} ms`,
         );
+
         console.log(
           `[Background] - ${getHrTimestamp()} - Pure OCR inference time ${
             message.data.ocrTime
@@ -344,7 +321,7 @@ chrome.runtime.onConnect.addListener((port) => {
           `[Background] - pure ocr inference time: ${message.data.ocrTime} ms`,
         );
 
-        chrome.storage.local.set(infData, () => {
+        browser.storage.local.set(infData).then(() => {
           console.log(
             '[Background] - ' +
               getHrTimestamp() +
@@ -352,9 +329,10 @@ chrome.runtime.onConnect.addListener((port) => {
           );
         });
       }
-      // Offscreen init feedback
+
       if (message.type === 'offscreenInit') {
-        chrome.storage.local.set({ offscreenInitialized: true });
+        browser.storage.local.set({ offscreenInitialized: true });
+
         console.log(
           `[Background] - ${getHrTimestamp()} - ONNX worker created in ${
             message.data.onnxInitTime
@@ -363,6 +341,7 @@ chrome.runtime.onConnect.addListener((port) => {
         logMessage(
           `[Background] - onnx worker creation time: ${message.data.onnxInitTime} ms`,
         );
+
         console.log(
           `[Background] - ${getHrTimestamp()} - Tokenizer initialized in ${
             message.data.tokenizerInitTime
@@ -371,6 +350,7 @@ chrome.runtime.onConnect.addListener((port) => {
         logMessage(
           `[Background] - tokenizer initialization time: ${message.data.tokenizerInitTime} ms`,
         );
+
         console.log(
           `[Background] - ${getHrTimestamp()} - OCR initialized in ${
             message.data.ocrInitTime
@@ -379,6 +359,7 @@ chrome.runtime.onConnect.addListener((port) => {
         logMessage(
           `[Background] - ocr initialization time: ${message.data.ocrInitTime} ms`,
         );
+
         console.log(
           `[Background] - ${getHrTimestamp()} - Offscreen initialized in ${
             message.data.offscreenInitTime
@@ -401,10 +382,10 @@ chrome.runtime.onConnect.addListener((port) => {
 
 ////// EXTENSION RELOAD LOGIC
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   if (message.type === 'resetExtension') {
-    chrome.storage.local.clear(() => {
-      chrome.runtime.reload();
+    browser.storage.local.clear().then(() => {
+      browser.runtime.reload();
     });
     console.log('[Background] - ' + getHrTimestamp() + ' - Extension reset.');
   }
@@ -413,260 +394,241 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 ////// MAIN CODE FUNCTIONS
 
 async function saveScreenshot(dataUrl, baseDir, filename) {
-  chrome.storage.local.get(
-    ['mainToggleState', 'ssToggleState'],
-    async (data) => {
-      if (data.mainToggleState && data.ssToggleState) {
-        fetch(dataUrl)
-          .then((res) => res.blob())
-          .then((blob) => {
-            const reader = new FileReader();
-            reader.onloadend = function () {
-              const dataUrlResult = reader.result;
-              const fullPath = `${baseDir}/${filename}.png`;
-              chrome.downloads.download(
-                {
-                  url: dataUrlResult,
-                  filename: fullPath, // Specifies the directory inside Downloads
-                  saveAs: false, // Automatically saves without prompt
-                },
-                (downloadId) => {
-                  if (chrome.runtime.lastError) {
-                    console.error('Download error:', chrome.runtime.lastError);
-                  } else {
-                    console.log(
-                      `[Background] - ${getHrTimestamp()} - Screenshot saved as: ${fullPath}`,
-                    );
-                  }
-                },
-              );
-            };
-            reader.readAsDataURL(blob);
-          })
-          .catch((error) => console.error('Error saving screenshot:', error));
-      }
-    },
-  );
+  try {
+    const data = await browser.storage.local.get([
+      'mainToggleState',
+      'ssToggleState',
+    ]);
+
+    if (data.mainToggleState && data.ssToggleState) {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      const reader = new FileReader();
+      reader.onloadend = async function () {
+        const dataUrlResult = reader.result;
+        const fullPath = `${baseDir}/${filename}.png`;
+
+        try {
+          const downloadId = await browser.downloads.download({
+            url: dataUrlResult,
+            filename: fullPath,
+            saveAs: false,
+          });
+
+          console.log(
+            `[Background] - ${getHrTimestamp()} - Screenshot saved as: ${fullPath}`,
+          );
+        } catch (err) {
+          console.error('Download error:', err);
+        }
+      };
+
+      reader.readAsDataURL(blob);
+    }
+  } catch (error) {
+    console.error('Error saving screenshot:', error);
+  }
 }
 
 async function showBrowserNotification() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     console.log(
       '[Background]  - ' +
         getHrTimestamp() +
         ' -  Showing browser notification',
     );
 
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    try {
+      const tabs = await browser.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
       if (!tabs || tabs.length === 0) {
         console.warn('[Background]  -  No active tab found');
         return reject('No active tab found');
       }
 
       const tab = tabs[0];
-      chrome.windows.get(tab.windowId, { populate: false }, (win) => {
-        if (!win) {
-          console.warn('[Background] - No window found for active tab');
-          return reject('No window found for active tab');
-        }
+      const win = await browser.windows.get(tab.windowId, { populate: false });
 
-        const popupWidth = Math.floor(win.width * 0.5);
-        const popupHeight = Math.floor(win.height * 0.5);
-        const top = win.top + Math.floor((win.height - popupHeight) / 2);
-        const left = win.left + Math.floor((win.width - popupWidth) / 2);
+      if (!win) {
+        console.warn('[Background] - No window found for active tab');
+        return reject('No window found for active tab');
+      }
 
-        chrome.windows.create(
-          {
-            url: chrome.runtime.getURL('notification.html'),
-            type: 'popup',
-            width: popupWidth,
-            height: popupHeight,
-            top,
-            left,
-            focused: true,
-          },
-          (newWindow) => {
-            if (chrome.runtime.lastError) {
-              console.error(
-                '[Background] - Failed to create popup:',
-                chrome.runtime.lastError,
-              );
-              return reject(chrome.runtime.lastError);
-            }
+      const popupWidth = Math.floor(win.width * 0.5);
+      const popupHeight = Math.floor(win.height * 0.5);
+      const top = win.top + Math.floor((win.height - popupHeight) / 2);
+      const left = win.left + Math.floor((win.width - popupWidth) / 2);
 
-            console.log(
-              `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
-                newWindow.id
-              }`,
-            );
-
-            if (scanId) {
-              clearInterval(scanId);
-              console.log(
-                '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
-              );
-            }
-
-            let actionTaken = false;
-
-            // Listener for message from popup
-            const listener = (message, sender, sendResponse) => {
-              if (message.type === 'userActionComplete') {
-                console.log(
-                  `[Background] - ${getHrTimestamp()}- Received userActionComplete message: ${
-                    message.result
-                  }`,
-                );
-                actionTaken = true;
-
-                chrome.windows.remove(newWindow.id, () => {
-                  if (chrome.runtime.lastError) {
-                    console.warn(
-                      '[Background] - Could not close popup window:',
-                      chrome.runtime.lastError,
-                    );
-                  } else {
-                    console.log(
-                      `[Background] - ${getHrTimestamp()} - Popup window with ID ${
-                        newWindow.id
-                      } closed.`,
-                    );
-                  }
-                });
-
-                if (message.result === 'Return to Safety') {
-                  chrome.tabs.query(
-                    { active: true, currentWindow: true },
-                    (tabs) => {
-                      chrome.tabs.update(tabs[0].id, {
-                        url: 'https://google.com',
-                      });
-                    },
-                  );
-                }
-
-                console.log(
-                  '[Background] - ' +
-                    getHrTimestamp() +
-                    ' - Resuming scan interval upon user interaction with popup',
-                );
-                runScans();
-
-                chrome.runtime.onMessage.removeListener(listener);
-                chrome.windows.onRemoved.removeListener(closedListener);
-                resolve(message.result);
-              }
-            };
-
-            // Listener for manual popup closure (e.g., X button)
-            const closedListener = (closedWindowId) => {
-              if (closedWindowId === newWindow.id && !actionTaken) {
-                console.log(
-                  '[Background]  - ' +
-                    getHrTimestamp() +
-                    ' -  Popup manually closed (likely via X button)',
-                );
-
-                chrome.runtime.onMessage.removeListener(listener);
-                chrome.windows.onRemoved.removeListener(closedListener);
-
-                console.log(
-                  '[Background] - ' +
-                    getHrTimestamp() +
-                    ' - Resuming scan interval after manual close',
-                );
-                runScans();
-
-                resolve('Closed Without Action');
-              }
-            };
-
-            chrome.runtime.onMessage.addListener(listener);
-            chrome.windows.onRemoved.addListener(closedListener);
-          },
-        );
+      const newWindow = await browser.windows.create({
+        url: browser.runtime.getURL('notification.html'),
+        type: 'popup',
+        width: popupWidth,
+        height: popupHeight,
+        top,
+        left,
+        focused: true,
       });
-    });
+
+      console.log(
+        `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
+          newWindow.id
+        }`,
+      );
+
+      if (scanId) {
+        clearInterval(scanId);
+        console.log(
+          '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
+        );
+      }
+
+      let actionTaken = false;
+
+      // Listener for message from popup
+      const listener = async (message, sender) => {
+        if (message.type === 'userActionComplete') {
+          console.log(
+            `[Background] - ${getHrTimestamp()} - Received userActionComplete message: ${
+              message.result
+            }`,
+          );
+          actionTaken = true;
+
+          try {
+            await browser.windows.remove(newWindow.id);
+            console.log(
+              `[Background] - ${getHrTimestamp()} - Popup window with ID ${
+                newWindow.id
+              } closed.`,
+            );
+          } catch (err) {
+            console.warn('[Background] - Could not close popup window:', err);
+          }
+
+          if (message.result === 'Return to Safety') {
+            const tabs = await browser.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            await browser.tabs.update(tabs[0].id, {
+              url: 'https://google.com',
+            });
+          }
+
+          console.log(
+            '[Background] - ' +
+              getHrTimestamp() +
+              ' - Resuming scan interval upon user interaction with popup',
+          );
+          runScans();
+
+          browser.runtime.onMessage.removeListener(listener);
+          browser.windows.onRemoved.removeListener(closedListener);
+          resolve(message.result);
+        }
+      };
+
+      // Listener for manual popup closure (e.g., X button)
+      const closedListener = (closedWindowId) => {
+        if (closedWindowId === newWindow.id && !actionTaken) {
+          console.log(
+            '[Background]  - ' +
+              getHrTimestamp() +
+              ' -  Popup manually closed (likely via X button)',
+          );
+
+          browser.runtime.onMessage.removeListener(listener);
+          browser.windows.onRemoved.removeListener(closedListener);
+
+          console.log(
+            '[Background] - ' +
+              getHrTimestamp() +
+              ' - Resuming scan interval after manual close',
+          );
+          runScans();
+
+          resolve('Closed Without Action');
+        }
+      };
+
+      browser.runtime.onMessage.addListener(listener);
+      browser.windows.onRemoved.addListener(closedListener);
+    } catch (err) {
+      console.error('[Background] - Error showing browser notification:', err);
+      reject(err);
+    }
   });
 }
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local') {
-    if (
-      changes.classification &&
-      changes.classification.newValue.split('_')[0] === 'malicious'
-    ) {
-      (async () => {
-        let result = await showBrowserNotification();
+browser.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== 'local') return;
 
-        console.log(
-          `[Background] - ${getHrTimestamp()} - User action received: ${result}. `,
-        );
+  const classification = changes.classification?.newValue;
+  if (!classification) return;
 
-        chrome.storage.local.get(
-          ['phash', 'classification', 'currentDomain'],
-          (result) => {
-            saveScreenshot(
-              ssDataUrlRaw,
-              `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-                result.classification.split('_')[0]
-              }`,
-              `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
-            );
-          },
-        );
-      })();
+  const label = classification.split('_')[0];
 
-      return;
+  if (label === 'malicious') {
+    try {
+      const userAction = await showBrowserNotification();
+      console.log(
+        `[Background] - ${getHrTimestamp()} - User action received: ${userAction}.`,
+      );
+    } catch (err) {
+      console.error(`[Background] - Error showing notification:`, err);
     }
-    if (
-      changes.classification &&
-      changes.classification.newValue.split('_')[0] === 'benign'
-    ) {
-      (async () => {
-        chrome.storage.local.get(
-          ['phash', 'classification', 'currentDomain'],
-          (result) => {
-            saveScreenshot(
-              ssDataUrlRaw,
-              `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-                result.classification.split('_')[0]
-              }`,
-              `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
-            );
-          },
-        );
-      })();
+  }
 
-      return;
+  if (label === 'malicious' || label === 'benign') {
+    try {
+      const { phash, classification, currentDomain } =
+        await browser.storage.local.get([
+          'phash',
+          'classification',
+          'currentDomain',
+        ]);
+
+      const screenshotPath = `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+        classification.split('_')[0]
+      }`;
+      const screenshotFilename = `${currentDomain}_${phash}_${getHrTimestamp()}`;
+
+      saveScreenshot(ssDataUrlRaw, screenshotPath, screenshotFilename);
+    } catch (err) {
+      console.error(`[Background] - Error saving screenshot:`, err);
     }
   }
 });
 
-function captureScreenshot() {
+async function captureScreenshot() {
   console.log(
     '[Background] - ' +
       getHrTimestamp() +
       ' - Attempting to capture screenshot...',
   );
 
-  return new Promise((resolve, reject) => {
-    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-      if (chrome.runtime.lastError || !dataUrl) {
-        console.error(
-          '[Background] Error capturing screenshot:',
-          chrome.runtime.lastError,
-        );
-        reject(chrome.runtime.lastError);
-        return;
-      }
-
-      console.log(
-        '[Background] - ' + getHrTimestamp() + ' - Screenshot captured.',
-      );
-      resolve(dataUrl);
+  try {
+    const dataUrl = await browser.tabs.captureVisibleTab(null, {
+      format: 'png',
     });
-  });
+
+    if (!dataUrl) {
+      throw new Error('No dataUrl returned from captureVisibleTab');
+    }
+
+    console.log(
+      '[Background] - ' + getHrTimestamp() + ' - Screenshot captured.',
+    );
+
+    return dataUrl;
+  } catch (err) {
+    console.error('[Background] Error capturing screenshot:', err);
+    throw err;
+  }
 }
 
 function getHammingDistance(hash1, hash2) {
@@ -725,188 +687,223 @@ function sendSsDataToOffscreen(data) {
   }
 }
 
-function getCurrentTabDomain(callback) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+async function getCurrentTabDomain() {
+  try {
+    const tabs = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
     if (tabs.length === 0) {
-      callback(null); // No active tab found
-      return;
+      return null; // No active tab found
     }
+
     const url = new URL(tabs[0].url);
     const domain = parse(url.hostname).domain;
-    callback(domain);
-  });
+    return domain;
+  } catch (err) {
+    console.error('Error getting current tab domain:', err);
+    return null;
+  }
 }
 
 // Inference Init Function
 async function startInference() {
-  // Capturing screenshot
-  let startTakeSsTime = Date.now();
-  ssDataUrlRaw = await captureScreenshot();
-  chrome.storage.local.set({ ssDataUrlRaw: ssDataUrlRaw });
-  let takeSsTime = Date.now() - startTakeSsTime;
-  console.log(
-    `[Background] - ${getHrTimestamp()} - Time to take screenshot: ${takeSsTime} ms`,
-  );
-  logMessage(`[Background] - screenshot capture time: ${takeSsTime} ms`);
+  try {
+    // Capturing screenshot
+    let startTakeSsTime = Date.now();
+    ssDataUrlRaw = await captureScreenshot();
 
-  // Computing phash
-  let phashStartTime = Date.now();
-  let phashNew = await getImagePHash(ssDataUrlRaw);
-  let phashTotalTime = Date.now() - phashStartTime;
-  console.log(
-    `[Background] - ${getHrTimestamp()} - Time to phash: ${phashTotalTime} ms`,
-  );
-  logMessage(`[Background] - phash computation time: ${phashTotalTime} ms`);
+    await browser.storage.local.set({ ssDataUrlRaw });
 
-  // Selecting appropriate case
-  chrome.storage.local.get(['phash'], (result) => {
-    let phashCurrent = result.phash;
+    let takeSsTime = Date.now() - startTakeSsTime;
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Time to take screenshot: ${takeSsTime} ms`,
+    );
+    logMessage(`[Background] - screenshot capture time: ${takeSsTime} ms`);
+
+    // Computing phash
+    let phashStartTime = Date.now();
+    let phashNew = await getImagePHash(ssDataUrlRaw);
+    let phashTotalTime = Date.now() - phashStartTime;
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Time to phash: ${phashTotalTime} ms`,
+    );
+    logMessage(`[Background] - phash computation time: ${phashTotalTime} ms`);
+
+    // Selecting appropriate case
+    const { phash: phashCurrent, classification } =
+      await browser.storage.local.get(['phash', 'classification']);
     console.log(
       `[Background] - ${getHrTimestamp()} - Retrieved phash value: ${phashCurrent}`,
     );
+
     // CASE 2 - No phash -> inference
     if (phashCurrent === null || phashCurrent === 'NA') {
       pureAllInfStartTime = Date.now();
       sendSsDataToOffscreen(ssDataUrlRaw);
-      chrome.storage.local.set({ phash: phashNew, hammingDistance: null });
-    } else {
-      let hammingDistance = getHammingDistance(phashCurrent, phashNew);
-      // CASE 3 - HD > thold -> inference
-      if (hammingDistance >= HAMMING_DIST_THOLD) {
-        pureAllInfStartTime = Date.now();
-        sendSsDataToOffscreen(ssDataUrlRaw);
-        chrome.storage.local.set({ phash: phashNew, hammingDistance }, () => {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Updated local storage: Phash greater than threshold',
-          );
-        });
-        // CASE 4 - phash < thold -> keep current classification
-      } else {
-        let case4TotalTime = Date.now() - scanStartTime;
-        console.log(
-          `[Background] - ${getHrTimestamp()} - Case 4 (phash < thold) scan complete in ${case4TotalTime} ms.`,
-        );
-        logMessage(`[Background] - case 4 total time: ${case4TotalTime} ms`);
-        const case4Data = {
-          resizedDataUrl: 'NA',
-          method: 'Phash less than threshold',
-          infTime: 'NA',
-          ocrText: 'NA',
-          ocrTime: 'NA',
-          hammingDistance,
-          totalTime: case4TotalTime,
-        };
-        chrome.storage.local.set(case4Data, () => {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Local storage updated: (Case 4) Phash less than threshold.',
-          );
-        });
-        chrome.storage.local.get(['phash', 'classification'], (result) => {
-          saveScreenshot(
-            ssDataUrlRaw,
-            `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-              result.classification.split('_')[0]
-            }`,
-            `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
-          );
-        });
-      }
+      await browser.storage.local.set({
+        phash: phashNew,
+        hammingDistance: null,
+      });
+      return;
     }
-  });
+
+    // CASE 3 or 4
+    const hammingDistance = getHammingDistance(phashCurrent, phashNew);
+
+    if (hammingDistance >= HAMMING_DIST_THOLD) {
+      // CASE 3 - Significant change -> inference
+      pureAllInfStartTime = Date.now();
+      sendSsDataToOffscreen(ssDataUrlRaw);
+      await browser.storage.local.set({ phash: phashNew, hammingDistance });
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Updated local storage: Phash greater than threshold',
+      );
+    } else {
+      // CASE 4 - Insignificant change -> reuse previous classification
+      const case4TotalTime = Date.now() - scanStartTime;
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Case 4 (phash < thold) scan complete in ${case4TotalTime} ms.`,
+      );
+      logMessage(`[Background] - case 4 total time: ${case4TotalTime} ms`);
+
+      const case4Data = {
+        resizedDataUrl: 'NA',
+        method: 'Phash less than threshold',
+        infTime: 'NA',
+        ocrText: 'NA',
+        ocrTime: 'NA',
+        hammingDistance,
+        totalTime: case4TotalTime,
+      };
+
+      await browser.storage.local.set(case4Data);
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Local storage updated: (Case 4) Phash less than threshold.',
+      );
+
+      const { phash, classification, currentDomain } =
+        await browser.storage.local.get([
+          'phash',
+          'classification',
+          'currentDomain',
+        ]);
+
+      saveScreenshot(
+        ssDataUrlRaw,
+        `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+          classification.split('_')[0]
+        }`,
+        `${currentDomain}_${phash}_${getHrTimestamp()}`,
+      );
+    }
+  } catch (err) {
+    console.error('[Background] - Error in startInference:', err);
+  }
 }
 
 ////// DRIVERS
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
+browser.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== 'local') return;
+
   if (changes.offscreenInitialized || changes.backgroundInitialized) {
-    chrome.storage.local.get(
-      ['offscreenInitialized', 'backgroundInitialized'],
-      (result) => {
-        if (result.offscreenInitialized && result.backgroundInitialized) {
-          let initTotalTime = Date.now() - sessionStartTime;
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Initialization completed in ${initTotalTime} ms`,
-          );
-          logMessage(
-            `[Background] - initialization completion time: ${initTotalTime} ms`,
-          );
-          runScans();
-        }
-      },
-    );
-    return;
+    try {
+      const result = await browser.storage.local.get([
+        'offscreenInitialized',
+        'backgroundInitialized',
+      ]);
+
+      if (result.offscreenInitialized && result.backgroundInitialized) {
+        const initTotalTime = Date.now() - sessionStartTime;
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Initialization completed in ${initTotalTime} ms`,
+        );
+        logMessage(
+          `[Background] - initialization completion time: ${initTotalTime} ms`,
+        );
+        runScans();
+      }
+    } catch (err) {
+      console.error('[Background] - Error checking init state:', err);
+    }
   }
 });
 
-function runSingleScan() {
-  chrome.storage.local.get(['mainToggleState'], (data) => {
-    if (data.mainToggleState) {
-      console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
+async function runSingleScan() {
+  try {
+    const data = await browser.storage.local.get(['mainToggleState']);
 
-      scanStartTime = Date.now();
-
-      getCurrentTabDomain((domain) => {
-        currentDomain = domain;
-        // CASE 1
-        if (trancoSet.has(domain)) {
-          // if (false) {
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${domain}`,
-          );
-          let case1TotalTime = Date.now() - scanStartTime;
-          const case1Data = {
-            resizedDataUrl: 'NA',
-            classification: `benign_${getHrTimestamp()}`,
-            method: `Tranco whitelist - ${domain}`,
-            infTime: 'NA',
-            ocrText: 'NA',
-            ocrTime: 'NA',
-            phash: 'NA',
-            hammingDistance: 'NA',
-            totalTime: case1TotalTime,
-          };
-          chrome.storage.local.set(case1Data, () => {
-            console.log(
-              '[Background] - ' +
-                getHrTimestamp() +
-                ' - Local storage updated: (Case 1) Tranco whitelist.',
-            );
-          });
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Case 1 (white list) scan completed in ${case1TotalTime} ms`,
-          );
-          logMessage(`[Background] - case 1 total time: ${case1TotalTime} ms`);
-
-          chrome.storage.local.get(
-            ['mainToggleState', 'ssToggleState'],
-            async (data) => {
-              if (data.mainToggleState && data.ssToggleState) {
-                const screenshot = await captureScreenshot();
-                saveScreenshot(
-                  screenshot,
-                  `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
-                  `${domain}_wl_${getHrTimestamp()}`,
-                );
-              }
-            },
-          );
-        } else {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Domain not in Tranco set.',
-          );
-          startInference();
-        }
-      });
-    } else {
+    if (!data.mainToggleState) {
       console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is OFF.');
+      return;
     }
-  });
+
+    console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
+    scanStartTime = Date.now();
+
+    currentDomain = await getCurrentTabDomain();
+
+    if (!currentDomain) {
+      console.warn('[Background] - Could not determine current domain.');
+      return;
+    }
+
+    // CASE 1: Tranco whitelist
+    if (trancoSet.has(currentDomain)) {
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${currentDomain}`,
+      );
+
+      const case1TotalTime = Date.now() - scanStartTime;
+      const case1Data = {
+        resizedDataUrl: 'NA',
+        classification: `benign_${getHrTimestamp()}`,
+        method: `Tranco whitelist - ${currentDomain}`,
+        infTime: 'NA',
+        ocrText: 'NA',
+        ocrTime: 'NA',
+        phash: 'NA',
+        hammingDistance: 'NA',
+        totalTime: case1TotalTime,
+      };
+
+      await browser.storage.local.set(case1Data);
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Local storage updated: (Case 1) Tranco whitelist.',
+      );
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Case 1 (whitelist) scan completed in ${case1TotalTime} ms`,
+      );
+      logMessage(`[Background] - case 1 total time: ${case1TotalTime} ms`);
+
+      const { ssToggleState } = await browser.storage.local.get([
+        'ssToggleState',
+      ]);
+      if (ssToggleState) {
+        const screenshot = await captureScreenshot();
+        saveScreenshot(
+          screenshot,
+          `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
+          `${currentDomain}_wl_${getHrTimestamp()}`,
+        );
+      }
+    } else {
+      console.log(
+        '[Background] - ' + getHrTimestamp() + ' - Domain not in Tranco set.',
+      );
+      startInference();
+    }
+  } catch (err) {
+    console.error('[Background] - Error during runSingleScan:', err);
+  }
 }
 
 function runScans() {
@@ -916,13 +913,17 @@ function runScans() {
 }
 
 // Performance logging
-setInterval(() => {
-  chrome.storage.local.get(
-    ['mainToggleState', 'performanceToggleState'],
-    (data) => {
-      if (data.performanceToggleState) {
-        saveLogsToFile();
-      }
-    },
-  );
+setInterval(async () => {
+  try {
+    const data = await browser.storage.local.get([
+      'mainToggleState',
+      'performanceToggleState',
+    ]);
+
+    if (data.performanceToggleState) {
+      saveLogsToFile();
+    }
+  } catch (err) {
+    console.error('[Background] - Error during performance logging:', err);
+  }
 }, SAVE_INTERVAL);

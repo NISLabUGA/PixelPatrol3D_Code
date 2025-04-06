@@ -14,7 +14,7 @@ console.log(
 );
 
 // Imports
-
+import browser from 'webextension-polyfill';
 import { AutoTokenizer } from '@xenova/transformers';
 import { getHrTimestamp } from './utils';
 
@@ -26,14 +26,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Open a long-lived offscreenPort to the background script.
-  const offscreenPort = chrome.runtime.connect({ name: 'offscreenPort' });
+  const offscreenPort = browser.runtime.connect({ name: 'offscreenPort' });
 
   // Initialize the ONNX worker.
   let onnxWorker;
   let onnxWorkerStartTime = Date.now();
   let onnxWorkerTotalTime = null;
   try {
-    onnxWorker = new Worker(chrome.runtime.getURL('onnx_worker.js'), {
+    onnxWorker = new Worker(browser.runtime.getURL('onnx_worker.js'), {
       type: 'module',
     });
   } catch (err) {

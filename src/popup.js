@@ -1,11 +1,9 @@
 // src/popup.js
 
+import browser from 'webextension-polyfill';
 import { getHrTimestamp } from './utils';
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Connecting for port messaging (if needed for other communication)
-  const popupPort = chrome.runtime.connect({ name: 'popup' });
-
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Popup] - ' + getHrTimestamp() + ' - Popup loaded.');
   const screenshotEl = document.getElementById('screenshot');
   const phashEl = document.getElementById('phash');
@@ -85,22 +83,19 @@ document.addEventListener('DOMContentLoaded', () => {
   ////// Main Toggle
 
   // Initialize the main toggle state
-  chrome.storage.local.get('mainToggleState', (data) => {
-    updateToggleButton(data.mainToggleState ?? false);
-  });
+  const { mainToggleState = false } = await browser.storage.local.get(
+    'mainToggleState',
+  );
+  updateToggleButton(mainToggleState);
 
-  // Event listener for main toggle button
-  mainToggle.addEventListener('click', () => {
-    chrome.storage.local.get('mainToggleState', (data) => {
-      const newState = !data.mainToggleState;
-      chrome.storage.local.set({ mainToggleState: newState }, () => {
-        updateToggleButton(newState);
-        console.log(
-          '[Popup] - ' + getHrTimestamp() + ' - Toggle state updated:',
-          newState,
-        );
-      });
-    });
+  // Update state when main toggle is clicked
+  mainToggle.addEventListener('click', async () => {
+    const { mainToggleState = false } = await browser.storage.local.get(
+      'mainToggleState',
+    );
+    const newState = !mainToggleState;
+    await browser.storage.local.set({ mainToggleState: newState });
+    updateToggleButton(newState);
   });
 
   // Update function for main toggle
@@ -116,8 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ////// Reset Button
 
-  resetButton.addEventListener('click', () => {
-    chrome.runtime.sendMessage({
+  resetButton.addEventListener('click', async () => {
+    await browser.runtime.sendMessage({
       type: 'resetExtension',
     });
   });
@@ -125,22 +120,24 @@ document.addEventListener('DOMContentLoaded', () => {
   ////// SS Logging Toggle
 
   // Initialize the SS Logging state
-  chrome.storage.local.get('ssToggleState', (data) => {
-    updateSsLoggingToggle(data.ssToggleState ?? false);
-  });
+  const { ssToggleState = false } = await browser.storage.local.get(
+    'ssToggleState',
+  );
+  updateSsLoggingToggle(ssToggleState);
 
   // Event listener for SS Logging toggle button
-  ssLoggingToggle.addEventListener('click', () => {
-    chrome.storage.local.get('ssToggleState', (data) => {
-      const newState = !data.ssToggleState;
-      chrome.storage.local.set({ ssToggleState: newState }, () => {
-        updateSsLoggingToggle(newState);
-        console.log(
-          '[Popup] - ' + getHrTimestamp() + ' - SS Logging state updated:',
-          newState,
-        );
-      });
-    });
+
+  ssLoggingToggle.addEventListener('click', async () => {
+    const { ssToggleState = false } = await browser.storage.local.get(
+      'ssToggleState',
+    );
+    const newState = !ssToggleState;
+    await browser.storage.local.set({ ssToggleState: newState });
+    updateSsLoggingToggle(newState);
+    console.log(
+      '[Popup] - ' + getHrTimestamp() + ' - SS Logging state updated:',
+      newState,
+    );
   });
 
   // Update function for SS Logging toggle
@@ -157,24 +154,23 @@ document.addEventListener('DOMContentLoaded', () => {
   ////// Performance Logging
 
   // Initialize the Performance Logging state
-  chrome.storage.local.get('performanceToggleState', (data) => {
-    updatePerformanceLoggingToggle(data.performanceToggleState ?? true);
-  });
+  const { performanceToggleState = true } = await browser.storage.local.get(
+    'performanceToggleState',
+  );
+  updatePerformanceLoggingToggle(performanceToggleState);
 
   // Event listener for Performance Logging toggle button
-  performanceLoggingToggle.addEventListener('click', () => {
-    chrome.storage.local.get('performanceToggleState', (data) => {
-      const newState = !data.performanceToggleState;
-      chrome.storage.local.set({ performanceToggleState: newState }, () => {
-        updatePerformanceLoggingToggle(newState);
-        console.log(
-          '[Popup] - ' +
-            getHrTimestamp() +
-            ' - Performance Logging state updated:',
-          newState,
-        );
-      });
-    });
+  performanceLoggingToggle.addEventListener('click', async () => {
+    const { performanceToggleState = true } = await browser.storage.local.get(
+      'performanceToggleState',
+    );
+    const newState = !performanceToggleState;
+    await browser.storage.local.set({ performanceToggleState: newState });
+    updatePerformanceLoggingToggle(newState);
+    console.log(
+      '[Popup] - ' + getHrTimestamp() + ' - Performance Logging state updated:',
+      newState,
+    );
   });
 
   // Update function for performance Logging toggle
@@ -199,18 +195,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load saved user agent selection
-  chrome.storage.local.get('selectedUserAgent', (data) => {
-    if (data.selectedUserAgent) {
-      userAgentSelect.value = data.selectedUserAgent;
-    }
-  });
+  const { selectedUserAgent } = await browser.storage.local.get(
+    'selectedUserAgent',
+  );
+  if (selectedUserAgent) {
+    userAgentSelect.value = selectedUserAgent;
+  }
 
   // Save selection on change
-  userAgentSelect.addEventListener('change', () => {
+  userAgentSelect.addEventListener('change', async () => {
     const selectedKey = userAgentSelect.value;
     const userAgent = USER_AGENT_STRINGS[selectedKey];
 
-    chrome.storage.local.set({
+    await browser.storage.local.set({
       selectedUserAgent: selectedKey,
       selectedUserAgentString: userAgent,
     });
@@ -237,42 +234,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // On load, read the local data and update the popup UI.
-  chrome.storage.local.get(null, (localData) => {
-    if (localData) {
-      if (localData.resizedDataUrl) {
-        screenshotEl.src = formatNonTime(localData.resizedDataUrl);
-      }
-      if (localData.phash) {
-        phashEl.textContent = formatNonTime(localData.phash);
-      }
-      if (localData.hammingDistance) {
-        hammingDistanceEl.textContent = formatNonTime(
-          localData.hammingDistance,
-        );
-      }
-      if (localData.ocrText) {
-        ocrTextEl.textContent = formatNonTime(localData.ocrText);
-      }
-      if (localData.classification) {
-        classificationEl.textContent = formatNonTime(localData.classification);
-      }
-      if (localData.method) {
-        methodEl.textContent = formatNonTime(localData.method);
-      }
-      if (localData.ocrTime) {
-        ocrTimeEl.textContent = formatTime(localData.ocrTime);
-      }
-      if (localData.infTime) {
-        onnxInferenceTimeEl.textContent = formatTime(localData.infTime);
-      }
-      if (localData.totalTime) {
-        totalTimeEl.textContent = formatTime(localData.totalTime);
-      }
+  const localData = await browser.storage.local.get(null);
+  if (localData) {
+    if (localData.resizedDataUrl) {
+      screenshotEl.src = formatNonTime(localData.resizedDataUrl);
     }
-  });
+    if (localData.phash) {
+      phashEl.textContent = formatNonTime(localData.phash);
+    }
+    if (localData.hammingDistance) {
+      hammingDistanceEl.textContent = formatNonTime(localData.hammingDistance);
+    }
+    if (localData.ocrText) {
+      ocrTextEl.textContent = formatNonTime(localData.ocrText);
+    }
+    if (localData.classification) {
+      classificationEl.textContent = formatNonTime(localData.classification);
+    }
+    if (localData.method) {
+      methodEl.textContent = formatNonTime(localData.method);
+    }
+    if (localData.ocrTime) {
+      ocrTimeEl.textContent = formatTime(localData.ocrTime);
+    }
+    if (localData.infTime) {
+      onnxInferenceTimeEl.textContent = formatTime(localData.infTime);
+    }
+    if (localData.totalTime) {
+      totalTimeEl.textContent = formatTime(localData.totalTime);
+    }
+  }
 
   // Listen for changes in local storage to update the UI in real-time.
-  chrome.storage.onChanged.addListener((changes, area) => {
+  browser.storage.onChanged.addListener((changes, area) => {
     if (area === 'local') {
       if (changes.resizedDataUrl) {
         screenshotEl.src = formatNonTime(changes.resizedDataUrl.newValue);
