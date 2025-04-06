@@ -221,32 +221,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-// Updating user agent on selection change
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  function (details) {
-    // Only override if it's not "default"
-    if (!currentUserAgent || currentUserAgent === 'default') {
-      return {};
-    }
-
-    const headers = details.requestHeaders.map((header) => {
-      if (header.name.toLowerCase() === 'user-agent') {
-        return { name: 'User-Agent', value: currentUserAgent };
-      }
-      return header;
-    });
-
-    if (!headers.some((h) => h.name.toLowerCase() === 'user-agent')) {
-      headers.push({ name: 'User-Agent', value: currentUserAgent });
-    }
-
-    return { requestHeaders: headers };
-  },
-  { urls: ['<all_urls>'] },
-  ['blocking', 'requestHeaders'],
-);
-
 // Initialization for background
 async function initBackground() {
   try {
