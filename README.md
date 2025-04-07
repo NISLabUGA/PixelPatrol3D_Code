@@ -1,4 +1,4 @@
-# Pixel Prowler Browser Extention
+# Pixel Prowler Browser Extention - Firefox
 
 **The web threat detection extension!**
 
@@ -8,7 +8,7 @@
 
 \*\* **Most people should skip to next section. Only really applies to those directly interesting build the extension form source.** \*\*
 
-### 1. Ensure Node.js is Installed
+#### 1. Ensure Node.js is Installed
 
 - Check if Node.js and npm are installed by running:
 
@@ -19,7 +19,7 @@
 
 - if not installed, download and install from https://nodejs.org/en/download
 
-### 2. Install Dependencies
+#### 2. Install Dependencies
 
 - Install Webpack and Webpack CLI:
 
@@ -34,7 +34,7 @@
   npm install --save-dev babel-loader @babel/core @babel/preset-env
   ```
 
-### 3. Navigate to Project Folder
+#### 3. Navigate to Project Folder
 
 - Open terminal and run
 
@@ -42,7 +42,7 @@
   cd path/to/where/you/pulled/down/the/repo
   ```
 
-### 4. Remove Previous Build (If exists) and Rebuild
+#### 4. Remove Previous Build (If exists) and Rebuild
 
 - Run the following command:
 
@@ -54,38 +54,37 @@
 
 ## Loading the Extension
 
-\*\* **Most people should start here to learn how to run the extension!** \*\*
+**Most people should start here to learn how to run the extension!**
 
-You will need a build directory to load into the browser. There are 2 main way to get this file:
+#### 1. You will need a build directory to load into the browser. There are 2 main ways to get this:
 
-1. Download the ZIP file associated with the latest release from the main GitHub page. Unzip the file. This folder is what needs to be loaded into the browser.
+1. **Download the ZIP file** associated with the latest release from the main GitHub page. Unzip the file — this folder is what you'll load into Firefox.
 
-2. You can also build the extension from the source code by pulling down the repository and going through the steps in the previous section on building the extension. Once the extension is built, it will generate a dist directory. This is what you will load into the browser!
+2. **Build from source:** Pull down the repository and follow the steps in the previous section to build the extension. Once the build is complete, it will generate a `dist` directory. This is what you'll load into Firefox.
 
-If you've never loaded an unpacked Chrome extension before, follow these steps:
+> ⚠️ Firefox does not yet support persistent installation of unpacked extensions. You’ll need to re-load the extension each time you restart the browser.
 
-### 1. Enable Developer Mode in Chrome
+#### 2. Open Firefox and Go to the Debugging Page
 
-1. Open **Google Chrome** or a Chome based variant.
-2. In the address bar, type: "chrome://extensions" and press **Enter**.
-3. In the top-right corner of the **Extensions** page, toggle on **Developer mode**.
+1. Open **Firefox**.
+2. In the address bar, type: `about:debugging#/runtime/this-firefox` and press **Enter**.
 
-### 2. Load the Unpacked Extension
+#### 3. Load the Temporary Extension
 
-1. Click the **"Load unpacked"** button.
-2. In the file picker, navigate to the folder containing your unpacked extension (the root directory with `manifest.json`).
-3. Select the folder and click **Open**.
+1. Click the **“Load Temporary Add-on…”** button.
+2. In the file picker, navigate to the folder containing your unpacked extension (you must select a file inside the folder — choose `manifest.json`).
+3. Firefox will load the extension immediately.
 
-### 3. Verify That the Extension Is Loaded
+#### 4. Verify the Extension Is Loaded
 
-- The extension should now appear in the list of installed extensions.
-- If the extension has an icon, it will also appear in the Chrome toolbar.
-- If the extension needs permissions, click **"Allow"** when prompted.
+- The extension should appear in the list on the **This Firefox** debugging page.
+- If the extension has a browser action icon, it will show up in the toolbar.
 
-### 4. Troubleshooting
+#### 5. Troubleshooting
 
-- **Extension not working:** Click **"Inspect views"** under the extension name to check for console errors.
-- **Not appearing in toolbar:** Click the puzzle piece 🧩 (extensions icon) and pin it.
+- **Extension not working?** Click the **"Inspect"** button next to your extension on the `about:debugging` page to open the developer console and check for errors.
+- **Not showing in toolbar?** Right-click the toolbar, click **"Customize Toolbar"**, and drag the icon into place if needed.
+- **Extension disappears after restart?** This is normal for temporary extensions. You’ll need to re-load it via `about:debugging`.
 
 ---
 
@@ -125,6 +124,6 @@ If the extension does find any potential threats, it will alert you by injecting
 
       1. Depending on the classification the screenshot will be saved to the corresponding directory.
 
-### SETTING USER AGENT
+### Setting User Agent
 
 If you wish to change your user agent to perhaps try to find new or different social engineering attack type and reduce the likelyhood of browser fingerprinting, that is an option. The extension uses your native user agent string. However, you can use the dropdown box to the right of "User Agent" to select from many common User Agent strings.
