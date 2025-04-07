@@ -1,10 +1,10 @@
 {
-  "name": "SEGaurd",
-  "version": "1.0",
+  "name": "Pixel Prowler",
+  "version": "0.1.3",
   "manifest_version": 3,
   "action": {
     "default_popup": "popup.html",
-    "default_title": "SEGaurd"
+    "default_title": "Pixel Prowler"
   },
   "background": {
     "service_worker": "background.js"
@@ -14,6 +14,7 @@
     "sandbox": "sandbox allow-scripts; script-src * 'wasm-unsafe-eval'; object-src 'self'; worker-src * blob:; child-src * blob:"
   },
   "permissions": [
+    "system.display",
     "tts",
     "tabs",
     "activeTab",
@@ -28,7 +29,9 @@
     "webRequest",
     "processes",
     "runtime",
-    "notifications"
+    "notifications",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": ["<all_urls>"],
   "web_accessible_resources": [
@@ -37,7 +40,8 @@
         "onnx_worker.js",
         "offscreen.html",
         "offscreen.js",
-        "content.js",
+        "notification.js",
+        "notification.html",
         "utils.js",
         "models/*",
         "libs/*"

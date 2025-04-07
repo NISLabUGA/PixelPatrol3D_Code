@@ -91,7 +91,7 @@ If you've never loaded an unpacked Chrome extension before, follow these steps:
 
 ## Using the Extension
 
-Once the extension is loaded in the browser you simply have to toggle the main button (largest button under the popup title and description). The extension will then scan as you browser at regular intervals to detect potential threats.
+Once the extension is loaded in the browser you simply have to toggle the main button (largest button to the left under the popup title and description that reads "ON" or "OFF"). The extension will then scan as you browser at regular intervals to detect potential threats. If you have any issues or the extension hangs for whatever reason, try resetting the extension to default by clicking the "RESET" button to the right off the main toggle described above. This will reset the extension to the initial as if it was freshly loaded.
 
 \*\* **NOTE** \*\* The extension has performance logging enabled by default to capture the initialization performance metrics. However, if you do not want this functionality you will need to manually disble it by toggling the associated button to off.
 
@@ -124,3 +124,7 @@ If the extension does find any potential threats, it will alert you by injecting
    1. Output path: `Downloads/pp_ext/<session_start_timestamp>/{benign, fp, malicous}/`
 
       1. Depending on the classification the screenshot will be saved to the corresponding directory.
+
+### SETTING USER AGENT
+
+If you wish to change your user agent to perhaps try to find new or different social engineering attack type and reduce the likelyhood of browser fingerprinting, that is an option. The extension uses your native user agent string. However, you can use the dropdown box to the right of "User Agent" to select from many common User Agent strings.

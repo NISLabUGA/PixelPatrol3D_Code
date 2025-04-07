@@ -71,7 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handleOcrInit(event) {
       if (event.data.type === 'ocrInit') {
         ocrTotalTime = event.data.message;
-        console.log(`[Offscreen] - OCR initialized in ${ocrTotalTime} ms.`);
+        console.log(
+          `[Offscreen] - ${getHrTimestamp()} - OCR initialized in ${ocrTotalTime} ms.`,
+        );
         window.removeEventListener('message', handleOcrInit);
         resolve();
       }
