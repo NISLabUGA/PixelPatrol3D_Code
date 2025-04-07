@@ -1,4 +1,4 @@
-# Pixel Prowler Browser Extention
+# Pixel Prowler Browser Extention - Chrome
 
 **The web threat detection extension!**
 
@@ -56,7 +56,7 @@
 
 \*\* **Most people should start here to learn how to run the extension!** \*\*
 
-You will need a build directory to load into the browser. There are 2 main way to get this file:
+#### 1. You will need a build directory to load into the browser. There are 2 main way to get this file:
 
 1. Download the ZIP file associated with the latest release from the main GitHub page. Unzip the file. This folder is what needs to be loaded into the browser.
 
@@ -64,25 +64,25 @@ You will need a build directory to load into the browser. There are 2 main way t
 
 If you've never loaded an unpacked Chrome extension before, follow these steps:
 
-### 1. Enable Developer Mode in Chrome
+#### 2. Enable Developer Mode in Chrome
 
 1. Open **Google Chrome** or a Chome based variant.
 2. In the address bar, type: "chrome://extensions" and press **Enter**.
 3. In the top-right corner of the **Extensions** page, toggle on **Developer mode**.
 
-### 2. Load the Unpacked Extension
+#### 3. Load the Unpacked Extension
 
 1. Click the **"Load unpacked"** button.
 2. In the file picker, navigate to the folder containing your unpacked extension (the root directory with `manifest.json`).
 3. Select the folder and click **Open**.
 
-### 3. Verify That the Extension Is Loaded
+#### 4. Verify That the Extension Is Loaded
 
 - The extension should now appear in the list of installed extensions.
 - If the extension has an icon, it will also appear in the Chrome toolbar.
 - If the extension needs permissions, click **"Allow"** when prompted.
 
-### 4. Troubleshooting
+#### 5. Troubleshooting
 
 - **Extension not working:** Click **"Inspect views"** under the extension name to check for console errors.
 - **Not appearing in toolbar:** Click the puzzle piece 🧩 (extensions icon) and pin it.
@@ -125,6 +125,6 @@ If the extension does find any potential threats, it will alert you by injecting
 
       1. Depending on the classification the screenshot will be saved to the corresponding directory.
 
-### SETTING USER AGENT
+### Setting User Agent
 
 If you wish to change your user agent to perhaps try to find new or different social engineering attack type and reduce the likelyhood of browser fingerprinting, that is an option. The extension uses your native user agent string. However, you can use the dropdown box to the right of "User Agent" to select from many common User Agent strings.
