@@ -1,53 +1,48 @@
 {
+  "manifest_version": 2,
   "name": "Pixel Prowler",
   "version": "0.1.0",
-  "manifest_version": 3,
-  "action": {
+  "description": "Detects and analyzes screenshots for social engineering attacks.",
+
+  "browser_action": {
     "default_popup": "popup.html",
     "default_title": "Pixel Prowler"
   },
+
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js"],
+    "persistent": true
   },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  },
+
   "permissions": [
     "system.display",
     "tts",
     "tabs",
     "activeTab",
-    "scripting",
     "storage",
     "unlimitedStorage",
     "downloads",
     "contextMenus",
-    "offscreen",
     "pageCapture",
     "windows",
     "webRequest",
     "webRequestBlocking",
-    "processes",
     "runtime",
-    "notifications"
+    "notifications",
+    "<all_urls>"
   ],
-  "host_permissions": ["<all_urls>"],
+
+  "content_security_policy": "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; object-src 'self'; worker-src blob:",
+
   "web_accessible_resources": [
-    {
-      "resources": [
-        "onnx_worker.js",
-        "offscreen.html",
-        "offscreen.js",
-        "notification.js",
-        "notification.html",
-        "utils.js",
-        "models/*",
-        "libs/*"
-      ],
-      "matches": ["<all_urls>"]
-    }
-  ],
-  "sandbox": {
-    "pages": ["sandbox.html"]
-  }
+    "onnx_worker.js",
+    "offscreen.html",
+    "offscreen.js",
+    "notification.html",
+    "notification.js",
+    "sandbox.html",
+    "utils.js",
+    "models/*",
+    "libs/*"
+  ]
 }

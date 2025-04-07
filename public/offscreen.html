@@ -1,12 +1,31 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Offscreen Inference</title>
+    <style>
+      #warning {
+        font-size: 24px;
+        font-weight: bold;
+        color: red;
+        text-align: center;
+        margin-top: 40px;
+      }
+    </style>
   </head>
   <body>
+    <div id="warning">
+      ⚠️ DO NOT CLOSE THIS PAGE! ⚠️<br />
+      This page is required for the <strong>Pixel Prowler</strong> extension to
+      run correctly!
+    </div>
+
     <script type="module" src="offscreen.js"></script>
     <!-- Hidden sandbox iframe for OCR processing -->
-    <iframe id="sandboxIframe" src="sandbox.html" sandbox="allow-scripts allow-same-origin" style="display:none;"></iframe>
+    <iframe
+      id="sandboxIframe"
+      src="sandbox.html"
+      style="display: none"
+    ></iframe>
   </body>
 </html>

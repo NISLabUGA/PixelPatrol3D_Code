@@ -14,6 +14,20 @@ const HAMMING_DIST_THOLD = 3;
 const SCAN_INTERVAL = 5 * 1000;
 const SAVE_INTERVAL = 30 * 1000;
 
+// Global variables
+let sessionStartTime = Date.now();
+let sessionStartTimeHr = getHrTimestamp();
+let scanStartTime = 0;
+let pureAllInfStartTime = 0;
+let scanId = null;
+let ssDataUrlRaw = null;
+let currentDomain = null;
+let offscreenPort = null;
+let trancoSet = new Set();
+let logs = [];
+let currentUserAgent = 'default';
+let offscreenWindowId = null;
+
 async function logMessage(message) {
   try {
     const result = await browser.storage.local.get([
@@ -34,16 +48,24 @@ async function logMessage(message) {
 }
 
 async function saveLogsToFile() {
+  console.log('hit');
   try {
     const result = await browser.storage.local.get({ logs: [] });
     const logText = result.logs.join('\n');
-    const url = 'data:text/plain;charset=utf-8,' + encodeURIComponent(logText);
+
+    // Create a Blob and object URL (Firefox-compatible)
+    const blob = new Blob([logText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
 
     await browser.downloads.download({
       url: url,
       filename: `${mainExtDownloadDir}/${sessionStartTimeHr}/logs/performance_${getHrTimestamp()}.txt`,
       saveAs: false,
+      conflictAction: 'uniquify',
     });
+
+    // Clean up the object URL after download
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     // Clear logs after saving
     logs = [];
@@ -98,55 +120,60 @@ async function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
 }
 
 async function ensureOffscreen() {
-  if (!browser.offscreen) {
-    console.warn(
-      'browser.offscreen API is not available. Offscreen inference will not work!',
-    );
-    return false;
-  }
-
   try {
-    const hasDocument = await browser.offscreen.hasDocument();
-    if (!hasDocument) {
-      await browser.offscreen.createDocument({
-        url: 'offscreen.html',
-        reasons: ['WORKERS'],
-        justification: 'Needed to run ONNX inference',
-      });
-      console.log(
-        '[Background] - ' + getHrTimestamp() + ' - Offscreen document created.',
-      );
-    } else {
-      console.log(
-        '[Background] - ' +
-          getHrTimestamp() +
-          ' - Offscreen document already exists.',
-      );
+    // Check if we've already created the offscreen window
+    if (offscreenWindowId) {
+      // Optionally verify it's still open/valid
+      const allWindows = await browser.windows.getAll();
+      const existingWindow = allWindows.find((w) => w.id === offscreenWindowId);
+      if (existingWindow) {
+        console.log(
+          '[Background] - Offscreen window already exists:',
+          existingWindow.id,
+        );
+        return true;
+      } else {
+        // If not found, reset
+        offscreenWindowId = null;
+      }
     }
+
+    // Create a minimized popup window that loads offscreen.html
+    const newWindow = await browser.windows.create({
+      url: browser.runtime.getURL('offscreen.html'),
+      type: 'popup',
+      focused: false,
+      state: 'minimized',
+    });
+
+    offscreenWindowId = newWindow.id;
+
+    console.log('[Background] - Created offscreen window:', offscreenWindowId);
     return true;
   } catch (err) {
-    console.error(
-      '[Background] - ' +
-        getHrTimestamp() +
-        ' - Error ensuring offscreen document:',
-      err,
-    );
+    console.error('[Background] - Error creating offscreen window:', err);
     return false;
   }
 }
 
-// Global variables
-let sessionStartTime = Date.now();
-let sessionStartTimeHr = getHrTimestamp();
-let scanStartTime = 0;
-let pureAllInfStartTime = 0;
-let scanId = null;
-let ssDataUrlRaw = null;
-let currentDomain = null;
-let offscreenPort = null;
-let trancoSet = new Set();
-let logs = [];
-let currentUserAgent = 'default';
+// Make sure if user closers offscreen page that is it recreated
+browser.windows.onRemoved.addListener(async (closedWindowId) => {
+  if (closedWindowId === offscreenWindowId) {
+    console.log(
+      '[Background] - The offscreen (minimized) window was closed by the user.',
+    );
+    offscreenWindowId = null;
+
+    ensureOffscreen()
+      .then(() => console.log('[Background] - Offscreen window re-created.'))
+      .catch((err) =>
+        console.error(
+          '[Background] - Error re-creating offscreen window:',
+          err,
+        ),
+      );
+  }
+});
 
 // Local storage variables
 const initLocalData = {
@@ -386,31 +413,31 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
       'ssToggleState',
     ]);
 
-    if (data.mainToggleState && data.ssToggleState) {
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
+    if (!data.mainToggleState || !data.ssToggleState) return;
 
-      const reader = new FileReader();
-      reader.onloadend = async function () {
-        const dataUrlResult = reader.result;
-        const fullPath = `${baseDir}/${filename}.png`;
+    // Fetch and convert the data URL to a blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
 
-        try {
-          const downloadId = await browser.downloads.download({
-            url: dataUrlResult,
-            filename: fullPath,
-            saveAs: false,
-          });
+    // Create a temporary object URL
+    const objectUrl = URL.createObjectURL(blob);
 
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Screenshot saved as: ${fullPath}`,
-          );
-        } catch (err) {
-          console.error('Download error:', err);
-        }
-      };
+    const fullPath = `${baseDir}/${filename}.png`;
 
-      reader.readAsDataURL(blob);
+    try {
+      await browser.downloads.download({
+        url: objectUrl,
+        filename: fullPath,
+        saveAs: false,
+      });
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Screenshot saved as: ${fullPath}`,
+      );
+    } catch (err) {
+      console.error('Download error:', err);
+    } finally {
+      // Revoke the object URL to free memory
+      URL.revokeObjectURL(objectUrl);
     }
   } catch (error) {
     console.error('Error saving screenshot:', error);
