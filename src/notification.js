@@ -1,16 +1,16 @@
-// src/notification.js
-
 import { getHrTimestamp } from './utils.js';
 
-// Retrieve the screenshot from local storage and display it if available
+// Retrieve the screenshot from local storage and display it
 const { ssDataUrlRaw } = await browser.storage.local.get('ssDataUrlRaw');
+console.log('ssDataUrlRaw', ssDataUrlRaw);
+
 const img = document.getElementById('screenshot');
 if (ssDataUrlRaw && ssDataUrlRaw !== 'NA') {
   img.src = ssDataUrlRaw;
   img.style.display = 'block';
 }
 
-// Helper function to send the user action back to the background script
+// Send user action back to background
 async function sendUserAction(action) {
   await browser.runtime.sendMessage({
     type: 'userActionComplete',

@@ -15,19 +15,14 @@
   },
 
   "permissions": [
-    "system.display",
-    "tts",
     "tabs",
     "activeTab",
     "storage",
     "unlimitedStorage",
     "downloads",
     "contextMenus",
-    "pageCapture",
-    "windows",
     "webRequest",
     "webRequestBlocking",
-    "runtime",
     "notifications",
     "<all_urls>"
   ],

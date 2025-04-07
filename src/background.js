@@ -48,7 +48,6 @@ async function logMessage(message) {
 }
 
 async function saveLogsToFile() {
-  console.log('hit');
   try {
     const result = await browser.storage.local.get({ logs: [] });
     const logText = result.logs.join('\n');
@@ -65,7 +64,7 @@ async function saveLogsToFile() {
     });
 
     // Clean up the object URL after download
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
 
     // Clear logs after saving
     logs = [];
@@ -193,6 +192,12 @@ const initLocalData = {
   phash: null,
   hammingDistance: null,
 };
+
+// Store the values in chrome.storage.local
+browser.storage.local.set(initLocalData);
+console.log(
+  '[Background] - ' + getHrTimestamp() + ' - Local storage initialized',
+);
 
 // Set UA from storage on startup
 browser.storage.local.get(['selectedUserAgentString']).then((result) => {
@@ -437,7 +442,7 @@ async function saveScreenshot(dataUrl, baseDir, filename) {
       console.error('Download error:', err);
     } finally {
       // Revoke the object URL to free memory
-      URL.revokeObjectURL(objectUrl);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
     }
   } catch (error) {
     console.error('Error saving screenshot:', error);
@@ -861,6 +866,7 @@ async function runSingleScan() {
     scanStartTime = Date.now();
 
     currentDomain = await getCurrentTabDomain();
+    await browser.storage.local.set({ currentDomain });
 
     if (!currentDomain) {
       console.warn('[Background] - Could not determine current domain.');
