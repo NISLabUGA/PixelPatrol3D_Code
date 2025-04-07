@@ -168,6 +168,13 @@ const initLocalData = {
   hammingDistance: null,
 };
 
+// Store the values in chrome.storage.local
+chrome.storage.local.set(initLocalData, () => {
+  console.log(
+    '[Background] - ' + getHrTimestamp() + ' - Local storage initialized',
+  );
+});
+
 // Add UA update listener
 chrome.runtime.onInstalled.addListener(() => {
   updateUserAgentRule();
