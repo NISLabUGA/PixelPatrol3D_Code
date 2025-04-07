@@ -1,6 +1,5 @@
 // src/notification.js
 
-import browser from 'webextension-polyfill';
 import { getHrTimestamp } from './utils.js';
 
 // Retrieve the screenshot from local storage and display it if available

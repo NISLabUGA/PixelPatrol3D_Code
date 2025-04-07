@@ -14,7 +14,6 @@ console.log(
 );
 
 // Imports
-import browser from 'webextension-polyfill';
 import { AutoTokenizer } from '@xenova/transformers';
 import { getHrTimestamp } from './utils';
 

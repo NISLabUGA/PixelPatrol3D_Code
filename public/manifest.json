@@ -1,10 +1,10 @@
 {
-  "name": "SEGaurd",
+  "name": "Pixel Prowler",
   "version": "1.0",
   "manifest_version": 3,
   "action": {
     "default_popup": "popup.html",
-    "default_title": "SEGaurd"
+    "default_title": "Pixel Prowler"
   },
   "background": {
     "service_worker": "background.js"
@@ -27,11 +27,10 @@
     "pageCapture",
     "windows",
     "webRequest",
+    "webRequestBlocking",
     "processes",
     "runtime",
-    "notifications",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
+    "notifications"
   ],
   "host_permissions": ["<all_urls>"],
   "web_accessible_resources": [

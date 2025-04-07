@@ -1,6 +1,5 @@
 // src/popup.js
 
-import browser from 'webextension-polyfill';
 import { getHrTimestamp } from './utils';
 
 document.addEventListener('DOMContentLoaded', async () => {

@@ -3,7 +3,6 @@
 ////// INITIALIZATION
 
 // Imports
-import browser from 'webextension-polyfill';
 import blockhash from 'blockhash-core';
 import { parse } from 'tldts';
 import { getHrTimestamp } from './utils';
@@ -168,54 +167,41 @@ const initLocalData = {
   hammingDistance: null,
 };
 
-function updateUserAgentRule() {
-  const ruleId = 1;
-
-  browser.declarativeNetRequest
-    .updateDynamicRules({
-      removeRuleIds: [ruleId],
-      addRules:
-        currentUserAgent === 'default'
-          ? []
-          : [
-              {
-                id: ruleId,
-                priority: 1,
-                action: {
-                  type: 'modifyHeaders',
-                  requestHeaders: [
-                    {
-                      header: 'User-Agent',
-                      operation: 'set',
-                      value: currentUserAgent,
-                    },
-                  ],
-                },
-                condition: {
-                  urlFilter: '|http*://*',
-                  resourceTypes: ['main_frame'],
-                },
-              },
-            ],
-    })
-    .then(() => {
-      console.log('Updated UA rule:', currentUserAgent);
-    })
-    .catch((error) => {
-      console.error('Failed to update UA rule:', error);
-    });
-}
-
-// Add UA update listener
-browser.runtime.onInstalled.addListener(() => {
-  updateUserAgentRule();
+// Set UA from storage on startup
+browser.storage.local.get(['selectedUserAgentString']).then((result) => {
+  currentUserAgent = result.selectedUserAgentString || 'default';
 });
 
-// Listen for changes to UA
+// Update User-Agent header for outgoing requests
+function modifyUserAgentHeader(details) {
+  if (currentUserAgent === 'default') {
+    return {}; // No modification
+  }
+
+  let headers = details.requestHeaders.filter(
+    (header) => header.name.toLowerCase() !== 'user-agent',
+  );
+
+  headers.push({
+    name: 'User-Agent',
+    value: currentUserAgent,
+  });
+
+  return { requestHeaders: headers };
+}
+
+// Register listener
+browser.webRequest.onBeforeSendHeaders.addListener(
+  modifyUserAgentHeader,
+  { urls: ['<all_urls>'], types: ['main_frame'] },
+  ['blocking', 'requestHeaders'],
+);
+
+// Update User-Agent string when storage changes
 browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.selectedUserAgentString) {
     currentUserAgent = changes.selectedUserAgentString.newValue || 'default';
-    updateUserAgentRule();
+    console.log('Updated currentUserAgent to:', currentUserAgent);
   }
 });
 
