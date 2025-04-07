@@ -1,13 +1,14 @@
 {
   "name": "Pixel Prowler",
-  "version": "1.0",
+  "version": "0.1.0",
   "manifest_version": 3,
   "action": {
     "default_popup": "popup.html",
     "default_title": "Pixel Prowler"
   },
   "background": {
-    "service_worker": "background.js"
+    "scripts": ["background.js"],
+    "persistent": false
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
