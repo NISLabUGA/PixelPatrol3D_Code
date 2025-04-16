@@ -12,7 +12,8 @@ const mainExtDownloadDir = 'pp_ext';
 const HASH_GRID_SIZE = 8;
 const HAMMING_DIST_THOLD = 3;
 const SCAN_INTERVAL = 5 * 1000;
-const SAVE_INTERVAL = 30 * 1000;
+const FLUSH_INTERVAL_MS = 2 * 60 * 1_000;
+const SAVE_INTERVAL = FLUSH_INTERVAL_MS;
 
 // Global variables
 let sessionStartTime = Date.now();
@@ -24,53 +25,26 @@ let ssDataUrlRaw = null;
 let currentDomain = null;
 let offscreenPort = null;
 let trancoSet = new Set();
-let logs = [];
 let currentUserAgent = 'default';
-let offscreenWindowId = null;
+let offscreenTabId = null;
+let perfBuffer = [];
+let ssBuffer = [];
 
 async function logMessage(message) {
   try {
-    const result = await browser.storage.local.get([
-      'mainToggleState',
-      'performanceToggleState',
-    ]);
+    const { mainToggleState, performanceToggleState } =
+      await browser.storage.local.get([
+        'mainToggleState',
+        'performanceToggleState',
+      ]);
 
-    if (result.performanceToggleState) {
-      const timestampedMessage = `[${new Date().toISOString()}] - ${message}`;
-      logs.push(timestampedMessage);
-
-      await browser.storage.local.set({ logs });
-      // console.log(timestampedMessage);
+    if (performanceToggleState) {
+      const ts = `[${new Date().toISOString()}] - ${message}`;
+      perfBuffer.push(ts);
+      // no more writes to browser.storage.local here
     }
-  } catch (error) {
-    console.error('Error updating logs:', error);
-  }
-}
-
-async function saveLogsToFile() {
-  try {
-    const result = await browser.storage.local.get({ logs: [] });
-    const logText = result.logs.join('\n');
-
-    // Create a Blob and object URL (Firefox-compatible)
-    const blob = new Blob([logText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-
-    await browser.downloads.download({
-      url: url,
-      filename: `${mainExtDownloadDir}/${sessionStartTimeHr}/logs/performance_${getHrTimestamp()}.txt`,
-      saveAs: false,
-      conflictAction: 'uniquify',
-    });
-
-    // Clean up the object URL after download
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-    // Clear logs after saving
-    logs = [];
-    await browser.storage.local.set({ logs: [] });
-  } catch (error) {
-    console.error('Error saving logs to file:', error);
+  } catch (err) {
+    console.error('Error updating logs:', err);
   }
 }
 
@@ -119,58 +93,30 @@ async function loadTrancoIntoMemory(filePath = './tranco_100k.csv') {
 }
 
 async function ensureOffscreen() {
+  // MOBILE: keep a hidden tab alive that hosts offscreen.html
   try {
-    // Check if we've already created the offscreen window
-    if (offscreenWindowId) {
-      // Optionally verify it's still open/valid
-      const allWindows = await browser.windows.getAll();
-      const existingWindow = allWindows.find((w) => w.id === offscreenWindowId);
-      if (existingWindow) {
-        console.log(
-          '[Background] - Offscreen window already exists:',
-          existingWindow.id,
-        );
-        return true;
-      } else {
-        // If not found, reset
-        offscreenWindowId = null;
-      }
+    if (offscreenTabId) {
+      await browser.tabs.get(offscreenTabId); // throws if closed
+      return true;
     }
-
-    // Create a minimized popup window that loads offscreen.html
-    const newWindow = await browser.windows.create({
-      url: browser.runtime.getURL('offscreen.html'),
-      type: 'popup',
-      focused: false,
-      state: 'minimized',
-    });
-
-    offscreenWindowId = newWindow.id;
-
-    console.log('[Background] - Created offscreen window:', offscreenWindowId);
-    return true;
-  } catch (err) {
-    console.error('[Background] - Error creating offscreen window:', err);
-    return false;
+  } catch {
+    offscreenTabId = null;
   }
+
+  const tab = await browser.tabs.create({
+    url: browser.runtime.getURL('offscreen.html'),
+    active: false,
+  });
+  offscreenTabId = tab.id;
+  console.log('[Background] - Created hidden offscreen tab:', offscreenTabId);
+  return true;
 }
 
 // Make sure if user closers offscreen page that is it recreated
-browser.windows.onRemoved.addListener(async (closedWindowId) => {
-  if (closedWindowId === offscreenWindowId) {
-    console.log(
-      '[Background] - The offscreen (minimized) window was closed by the user.',
-    );
-    offscreenWindowId = null;
-
-    ensureOffscreen()
-      .then(() => console.log('[Background] - Offscreen window re-created.'))
-      .catch((err) =>
-        console.error(
-          '[Background] - Error re-creating offscreen window:',
-          err,
-        ),
-      );
+browser.tabs.onRemoved.addListener(async (tabId) => {
+  if (tabId === offscreenTabId) {
+    offscreenTabId = null;
+    await ensureOffscreen();
   }
 });
 
@@ -400,185 +346,97 @@ browser.runtime.onConnect.addListener((port) => {
 
 ////// EXTENSION RELOAD LOGIC
 
-browser.runtime.onMessage.addListener((message, sender) => {
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'resetExtension') {
     browser.storage.local.clear().then(() => {
       browser.runtime.reload();
     });
     console.log('[Background] - ' + getHrTimestamp() + ' - Extension reset.');
   }
+  if (message.type === 'downloadComplete' || message.type === 'dismiss') {
+    perfBuffer = [];
+    ssBuffer = [];
+  }
+  if (message.type === 'requestBuffers') {
+    sendResponse({
+      perfText: perfBuffer.join('\n'),
+      screenshots: ssBuffer.map(({ name, dataUrl }) => ({ name, dataUrl })),
+    });
+    return true; // <== Important for async `sendResponse`
+  }
 });
 
 ////// MAIN CODE FUNCTIONS
 
+async function openDownloadCenter() {
+  // Open the page only once per flush cycle
+  const centerTab = await browser.tabs.create({
+    url: browser.runtime.getURL('download_center.html'),
+    active: true,
+  });
+
+  // Wait for the content script in download_center.html to request data
+  function handleRequest(msg, sender) {
+    if (msg.type !== 'requestBuffers') return;
+
+    // Send blobs & names
+    browser.tabs.sendMessage(sender.tab.id, {
+      type: 'buffers',
+      perfText: perfBuffer.join('\n'),
+      screenshots: ssBuffer, // array of { name, blob }
+    });
+
+    // Clear listeners so we don't leak
+    browser.runtime.onMessage.removeListener(handleRequest);
+  }
+  browser.runtime.onMessage.addListener(handleRequest);
+}
+
 async function saveScreenshot(dataUrl, baseDir, filename) {
   try {
-    const data = await browser.storage.local.get([
+    const { mainToggleState, ssToggleState } = await browser.storage.local.get([
       'mainToggleState',
       'ssToggleState',
     ]);
 
-    if (!data.mainToggleState || !data.ssToggleState) return;
+    if (!mainToggleState || !ssToggleState) return;
 
-    // Fetch and convert the data URL to a blob
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-
-    // Create a temporary object URL
-    const objectUrl = URL.createObjectURL(blob);
-
-    const fullPath = `${baseDir}/${filename}.png`;
-
-    try {
-      await browser.downloads.download({
-        url: objectUrl,
-        filename: fullPath,
-        saveAs: false,
-      });
-      console.log(
-        `[Background] - ${getHrTimestamp()} - Screenshot saved as: ${fullPath}`,
-      );
-    } catch (err) {
-      console.error('Download error:', err);
-    } finally {
-      // Revoke the object URL to free memory
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
-    }
-  } catch (error) {
-    console.error('Error saving screenshot:', error);
+    ssBuffer.push({ name: `${baseDir}/${filename}.png`, dataUrl });
+    console.log(
+      `[Background] - ${getHrTimestamp()} - queued screenshot ${filename}.png`,
+    );
+  } catch (err) {
+    console.error('Error queueing screenshot:', err);
   }
 }
 
 async function showBrowserNotification() {
-  return new Promise(async (resolve, reject) => {
-    console.log(
-      '[Background]  - ' +
-        getHrTimestamp() +
-        ' -  Showing browser notification',
-    );
+  return new Promise((resolve) => {
+    const id = `se_alert_${Date.now()}`;
+    browser.notifications.create(id, {
+      type: 'basic',
+      // iconUrl: browser.runtime.getURL('icons/icon-128.png'),
+      title: 'Suspicious page detected',
+      message: 'Tap to learn more or swipe to dismiss.',
+    });
 
-    try {
-      const tabs = await browser.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      if (!tabs || tabs.length === 0) {
-        console.warn('[Background]  -  No active tab found');
-        return reject('No active tab found');
-      }
-
-      const tab = tabs[0];
-      const win = await browser.windows.get(tab.windowId, { populate: false });
-
-      if (!win) {
-        console.warn('[Background] - No window found for active tab');
-        return reject('No window found for active tab');
-      }
-
-      const popupWidth = Math.floor(win.width * 0.5);
-      const popupHeight = Math.floor(win.height * 0.5);
-      const top = win.top + Math.floor((win.height - popupHeight) / 2);
-      const left = win.left + Math.floor((win.width - popupWidth) / 2);
-
-      const newWindow = await browser.windows.create({
-        url: browser.runtime.getURL('notification.html'),
-        type: 'popup',
-        width: popupWidth,
-        height: popupHeight,
-        top,
-        left,
-        focused: true,
-      });
-
-      console.log(
-        `[Background] - ${getHrTimestamp()} -  Popup window created with ID: ${
-          newWindow.id
-        }`,
-      );
-
-      if (scanId) {
-        clearInterval(scanId);
-        console.log(
-          '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
-        );
-      }
-
-      let actionTaken = false;
-
-      // Listener for message from popup
-      const listener = async (message, sender) => {
-        if (message.type === 'userActionComplete') {
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Received userActionComplete message: ${
-              message.result
-            }`,
-          );
-          actionTaken = true;
-
-          try {
-            await browser.windows.remove(newWindow.id);
-            console.log(
-              `[Background] - ${getHrTimestamp()} - Popup window with ID ${
-                newWindow.id
-              } closed.`,
-            );
-          } catch (err) {
-            console.warn('[Background] - Could not close popup window:', err);
-          }
-
-          if (message.result === 'Return to Safety') {
-            const tabs = await browser.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
-            await browser.tabs.update(tabs[0].id, {
-              url: 'https://google.com',
-            });
-          }
-
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Resuming scan interval upon user interaction with popup',
-          );
-          runScans();
-
-          browser.runtime.onMessage.removeListener(listener);
-          browser.windows.onRemoved.removeListener(closedListener);
-          resolve(message.result);
-        }
-      };
-
-      // Listener for manual popup closure (e.g., X button)
-      const closedListener = (closedWindowId) => {
-        if (closedWindowId === newWindow.id && !actionTaken) {
-          console.log(
-            '[Background]  - ' +
-              getHrTimestamp() +
-              ' -  Popup manually closed (likely via X button)',
-          );
-
-          browser.runtime.onMessage.removeListener(listener);
-          browser.windows.onRemoved.removeListener(closedListener);
-
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Resuming scan interval after manual close',
-          );
-          runScans();
-
-          resolve('Closed Without Action');
-        }
-      };
-
-      browser.runtime.onMessage.addListener(listener);
-      browser.windows.onRemoved.addListener(closedListener);
-    } catch (err) {
-      console.error('[Background] - Error showing browser notification:', err);
-      reject(err);
+    function clicked(nid) {
+      if (nid !== id) return;
+      browser.notifications.clear(id);
+      // optional: open a details page
+      browser.tabs.create({ url: browser.runtime.getURL('notification.html') });
+      cleanup('Clicked');
     }
+    function closed(nid) {
+      if (nid === id) cleanup('Dismissed');
+    }
+    function cleanup(result) {
+      browser.notifications.onClicked.removeListener(clicked);
+      browser.notifications.onClosed.removeListener(closed);
+      resolve(result);
+    }
+    browser.notifications.onClicked.addListener(clicked);
+    browser.notifications.onClosed.addListener(closed);
   });
 }
 
@@ -931,18 +789,8 @@ function runScans() {
   }, SCAN_INTERVAL);
 }
 
-// Performance logging
-setInterval(async () => {
-  try {
-    const data = await browser.storage.local.get([
-      'mainToggleState',
-      'performanceToggleState',
-    ]);
-
-    if (data.performanceToggleState) {
-      saveLogsToFile();
-    }
-  } catch (err) {
-    console.error('[Background] - Error during performance logging:', err);
-  }
-}, SAVE_INTERVAL);
+setInterval(() => {
+  if (perfBuffer.length === 0 && ssBuffer.length === 0) return;
+  openDownloadCenter();
+  // do NOT clear buffers yet – wait for user action
+}, FLUSH_INTERVAL_MS);

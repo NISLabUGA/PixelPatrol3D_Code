@@ -11,6 +11,7 @@ module.exports = {
     offscreen: './src/offscreen.js',
     notification: './src/notification.js',
     utils: './src/utils.js',
+    download_center: './src/download_center.js',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
