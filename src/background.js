@@ -416,8 +416,9 @@ async function showBrowserNotification() {
     browser.notifications.create(id, {
       type: 'basic',
       // iconUrl: browser.runtime.getURL('icons/icon-128.png'),
-      title: 'Suspicious page detected',
+      title: 'Unsafe page detected!',
       message: 'Tap to learn more or swipe to dismiss.',
+      priority: 2,
     });
 
     function clicked(nid) {
@@ -440,6 +441,18 @@ async function showBrowserNotification() {
   });
 }
 
+async function injectAlertBanner(tabId) {
+  try {
+    await browser.tabs.executeScript(tabId, {
+      file: 'alert_banner.js', // path is relative to extension root
+      runAt: 'document_idle', // after the page finishes loading
+    });
+    console.log(`[Background] – Banner injected into tab ${tabId}`);
+  } catch (err) {
+    console.error('[Background] – Banner injection failed:', err);
+  }
+}
+
 browser.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName !== 'local') return;
 
@@ -450,6 +463,11 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
   if (label === 'malicious') {
     try {
+      const [tab] = await browser.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tab) await injectAlertBanner(tab.id);
       const userAction = await showBrowserNotification();
       console.log(
         `[Background] - ${getHrTimestamp()} - User action received: ${userAction}.`,

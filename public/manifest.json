@@ -37,6 +37,7 @@
     "notification.js",
     "sandbox.html",
     "download_center.html",
+    "alert_banner.js",
     "utils.js",
     "models/*",
     "libs/*"

@@ -12,6 +12,7 @@ module.exports = {
     notification: './src/notification.js',
     utils: './src/utils.js',
     download_center: './src/download_center.js',
+    alert_banner: './src/alert_banner.js',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
