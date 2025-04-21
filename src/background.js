@@ -27,6 +27,8 @@ let offscreenPort = null;
 let trancoSet = new Set();
 let currentUserAgent = 'default';
 let offscreenTabId = null;
+let lastAlertTabId = null;
+let alertUITabId = null;
 let perfBuffer = [];
 let ssBuffer = [];
 
@@ -366,6 +368,57 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+////// HANDLE MALICIOUS NOTIFICATON BUTTON CLICKS
+
+browser.runtime.onMessage.addListener((message, sender) => {
+  if (message.type !== 'userActionComplete') return;
+
+  const tabId = sender.tab?.id;
+  switch (message.result) {
+    case 'Return to Safety':
+      if (lastAlertTabId != null) {
+        // close the sketchy page
+        browser.tabs.remove(lastAlertTabId);
+        // open a brand‑new tab to Google
+        browser.tabs.create({ url: 'https://google.com' });
+      }
+      if (tabId) browser.tabs.remove(tabId);
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Received user action: ${
+          message.result
+        }`,
+      );
+      break;
+
+    case 'Ignore Warning':
+      if (lastAlertTabId != null) {
+        browser.tabs.update(lastAlertTabId, { active: true });
+      }
+      if (tabId) browser.tabs.remove(tabId);
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Received user action: ${
+          message.result
+        }`,
+      );
+      break;
+
+    case 'Not Malicious':
+      if (lastAlertTabId != null) {
+        browser.tabs.update(lastAlertTabId, { active: true });
+      }
+      if (tabId) browser.tabs.remove(tabId);
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Received user action: ${
+          message.result
+        }`,
+      );
+      break;
+  }
+
+  // clean up the UI‑tab tracker
+  alertUITabId = null;
+});
+
 ////// MAIN CODE FUNCTIONS
 
 async function openDownloadCenter() {
@@ -393,6 +446,10 @@ async function openDownloadCenter() {
 }
 
 async function saveScreenshot(dataUrl, baseDir, filename) {
+  console.log('[Background] - ' + getHrTimestamp() + ' - saveScreenshot →', {
+    baseDir,
+    filename,
+  });
   try {
     const { mainToggleState, ssToggleState } = await browser.storage.local.get([
       'mainToggleState',
@@ -415,27 +472,41 @@ async function showBrowserNotification() {
     const id = `se_alert_${Date.now()}`;
     browser.notifications.create(id, {
       type: 'basic',
-      // iconUrl: browser.runtime.getURL('icons/icon-128.png'),
       title: 'Unsafe page detected!',
-      message: 'Tap to learn more or swipe to dismiss.',
+      message: 'Tap to view details.',
       priority: 2,
     });
 
     function clicked(nid) {
       if (nid !== id) return;
       browser.notifications.clear(id);
-      // optional: open a details page
-      browser.tabs.create({ url: browser.runtime.getURL('notification.html') });
+
+      // **focus the already‑open UI tab** (fallback to creating it)
+      if (alertUITabId != null) {
+        browser.tabs.update(alertUITabId, { active: true });
+      } else {
+        browser.tabs
+          .create({
+            url: browser.runtime.getURL('notification.html'),
+          })
+          .then((tab) => {
+            alertUITabId = tab.id;
+          });
+      }
+
       cleanup('Clicked');
     }
+
     function closed(nid) {
       if (nid === id) cleanup('Dismissed');
     }
+
     function cleanup(result) {
       browser.notifications.onClicked.removeListener(clicked);
       browser.notifications.onClosed.removeListener(closed);
       resolve(result);
     }
+
     browser.notifications.onClicked.addListener(clicked);
     browser.notifications.onClosed.addListener(closed);
   });
@@ -463,38 +534,43 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
   if (label === 'malicious') {
     try {
-      const [tab] = await browser.tabs.query({
+      const [origin] = await browser.tabs.query({
         active: true,
         currentWindow: true,
       });
-      if (tab) await injectAlertBanner(tab.id);
-      const userAction = await showBrowserNotification();
-      console.log(
-        `[Background] - ${getHrTimestamp()} - User action received: ${userAction}.`,
-      );
+      if (origin) {
+        lastAlertTabId = origin.id;
+        // await injectAlertBanner(origin.id);
+      }
+
+      // **1) immediately open your full-screen alert UI**
+      const uiTab = await browser.tabs.create({
+        url: browser.runtime.getURL('notification.html'),
+        active: true,
+      });
+      alertUITabId = uiTab.id;
+      await showBrowserNotification();
     } catch (err) {
       console.error(`[Background] - Error showing notification:`, err);
     }
   }
 
-  if (label === 'malicious' || label === 'benign') {
-    try {
-      const { phash, classification, currentDomain } =
-        await browser.storage.local.get([
-          'phash',
-          'classification',
-          'currentDomain',
-        ]);
+  try {
+    const { phash, classification, currentDomain } =
+      await browser.storage.local.get([
+        'phash',
+        'classification',
+        'currentDomain',
+      ]);
 
-      const screenshotPath = `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-        classification.split('_')[0]
-      }`;
-      const screenshotFilename = `${currentDomain}_${phash}_${getHrTimestamp()}`;
+    const screenshotPath = `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+      classification.split('_')[0]
+    }`;
+    const screenshotFilename = `${currentDomain}_${phash}_${getHrTimestamp()}`;
 
-      saveScreenshot(ssDataUrlRaw, screenshotPath, screenshotFilename);
-    } catch (err) {
-      console.error(`[Background] - Error saving screenshot:`, err);
-    }
+    saveScreenshot(ssDataUrlRaw, screenshotPath, screenshotFilename);
+  } catch (err) {
+    console.error(`[Background] - Error saving screenshot:`, err);
   }
 });
 

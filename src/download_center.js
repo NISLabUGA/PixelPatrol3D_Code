@@ -40,10 +40,12 @@ portReady.then(({ perfText, screenshots }) => {
     try {
       const blob = dataUrlToBlob(dataUrl);
       const url = URL.createObjectURL(blob);
-      const filename = name.split('/').pop();
-
-      addLink(filename, url);
-      zip.file(filename, blob);
+      const parts = name.split('/');
+      const label = parts[parts.length - 2]; // "malicious" or "benign" or "fp"
+      const fileName = parts[parts.length - 1]; // "example.png"
+      const downloadPath = `${label}/${fileName}`;
+      addLink(downloadPath, url);
+      zip.file(downloadPath, blob);
     } catch (e) {
       console.error('Error processing screenshot:', name, e);
     }

@@ -14,7 +14,7 @@ if (ssDataUrlRaw && ssDataUrlRaw !== 'NA') {
 async function sendUserAction(action) {
   await browser.runtime.sendMessage({
     type: 'userActionComplete',
-    result: `${action}`,
+    result: action,
   });
 }
 
