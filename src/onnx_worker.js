@@ -1,6 +1,6 @@
 // src/onnx_worker.js
 import * as ort from 'onnxruntime-web';
-import { getHrTimestamp } from './utils';
+import { getHrTimestamp, detectWebGL } from './utils';
 
 console.log('[ONNX Worker] - ' + getHrTimestamp() + ' - Worker started.');
 self.postMessage({ type: 'onnxWorkInitialized' });
@@ -57,7 +57,20 @@ self.onmessage = async (e) => {
           '[ONNX Worker] - ' + getHrTimestamp() + ' - Loading model from:',
           modelUrl,
         );
-        self.session = await ort.InferenceSession.create(modelUrl);
+
+        const executionProviders = [];
+        if (detectWebGL()) {
+          executionProviders.push('webgl');
+          console.log('[ONNX Worker] – WebGL detected, will use WebGL EP');
+        }
+        executionProviders.push('wasm');
+        console.log(
+          '[ONNX Worker] – Loading model with providers:',
+          executionProviders,
+        );
+        self.session = await ort.InferenceSession.create(modelUrl, {
+          executionProviders,
+        });
         console.log('[ONNX Worker] - ' + getHrTimestamp() + ' - Model loaded.');
       }
       const session = self.session;
