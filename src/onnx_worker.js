@@ -59,10 +59,10 @@ self.onmessage = async (e) => {
         );
 
         const executionProviders = [];
-        if (detectWebGL()) {
-          executionProviders.push('webgl');
-          console.log('[ONNX Worker] – WebGL detected, will use WebGL EP');
-        }
+        // if (detectWebGL()) {
+        //   executionProviders.push('webgl');
+        //   console.log('[ONNX Worker] – WebGL detected, will use WebGL EP');
+        // }
         executionProviders.push('wasm');
         console.log(
           '[ONNX Worker] – Loading model with providers:',

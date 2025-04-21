@@ -42,6 +42,7 @@ async function logMessage(message) {
 
     if (performanceToggleState) {
       const ts = `[${new Date().toISOString()}] - ${message}`;
+      console.log(ts);
       perfBuffer.push(ts);
       // no more writes to browser.storage.local here
     }
