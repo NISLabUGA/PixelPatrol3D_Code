@@ -40,7 +40,7 @@ async function logMessage(message) {
       logs.push(timestampedMessage);
 
       await browser.storage.local.set({ logs });
-      // console.log(timestampedMessage);
+      console.log(timestampedMessage);
     }
   } catch (error) {
     console.error('Error updating logs:', error);
