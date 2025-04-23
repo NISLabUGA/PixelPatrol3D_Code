@@ -10,9 +10,9 @@ import { getHrTimestamp } from './utils';
 // Global settings
 const mainExtDownloadDir = 'pp_ext';
 const HASH_GRID_SIZE = 8;
-const HAMMING_DIST_THOLD = 3;
+const HAMMING_DIST_THOLD = 5;
 const SCAN_INTERVAL = 5 * 1000;
-const SAVE_INTERVAL = 30 * 1000;
+const SAVE_INTERVAL = 2 * 60 * 1000;
 
 function logMessage(message) {
   chrome.storage.local.get(
@@ -28,7 +28,7 @@ function logMessage(message) {
             console.error('Error updating logs:', chrome.runtime.lastError);
           }
         });
-        // console.log(timestampedMessage);
+        console.log(timestampedMessage);
       }
     },
   );
@@ -141,6 +141,7 @@ let sessionStartTime = Date.now();
 let sessionStartTimeHr = getHrTimestamp();
 let scanStartTime = 0;
 let pureAllInfStartTime = 0;
+let scanIntId = null;
 let scanId = null;
 let ssDataUrlRaw = null;
 let currentDomain = null;
@@ -148,6 +149,7 @@ let offscreenPort = null;
 let trancoSet = new Set();
 let logs = [];
 let currentUserAgent = 'default';
+let isScanning = false;
 
 // Local storage variables
 const initLocalData = {
@@ -166,7 +168,20 @@ const initLocalData = {
   totalTime: null,
   phash: null,
   hammingDistance: null,
+  infFlag: null,
 };
+
+function getFromStorage(keys) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(keys, resolve);
+  });
+}
+
+function setToStorage(data) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set(data, resolve);
+  });
+}
 
 // Store the values in chrome.storage.local
 chrome.storage.local.set(initLocalData, () => {
@@ -332,6 +347,8 @@ chrome.runtime.onConnect.addListener((port) => {
               ' - Local storage updated with infResponse',
           );
         });
+
+        chrome.storage.local.set({ infFlag: `complete` });
       }
       // Offscreen init feedback
       if (message.type === 'offscreenInit') {
@@ -481,8 +498,9 @@ async function showBrowserNotification() {
               }`,
             );
 
-            if (scanId) {
-              clearInterval(scanId);
+            if (scanIntId) {
+              clearInterval(scanIntId);
+              scanIntId = null;
               console.log(
                 '[Background]  - ' + getHrTimestamp() + ' -  Scanning paused.',
               );
@@ -689,21 +707,39 @@ async function getImagePHash(dataUrl) {
 }
 
 function sendSsDataToOffscreen(data) {
-  // Send screenshot via open port if connected
-  if (offscreenPort) {
+  return new Promise((resolve, reject) => {
+    if (!offscreenPort) {
+      console.warn(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - offscreen not connected to receive the screenshot.',
+      );
+      return reject(new Error('Offscreen port not connected'));
+    }
+
+    function listenForInfCompletion(changes, areaName) {
+      if (areaName !== 'local') return;
+
+      if (changes.infFlag && changes.infFlag.newValue === 'complete') {
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Inference complete (via storage).`,
+        );
+        chrome.storage.onChanged.removeListener(listenForInfCompletion);
+        resolve(true);
+      }
+    }
+    chrome.storage.onChanged.addListener(listenForInfCompletion);
+
+    // Set running flag
+    chrome.storage.local.set({ infFlag: `running` });
+
     console.log(
       '[Background] - ' +
         getHrTimestamp() +
         ' - Sending raw screenshot data url to offscreen.',
     );
-    offscreenPort.postMessage({ type: 'ssDataUrlRaw', data: data });
-  } else {
-    console.warn(
-      '[Background] - ' +
-        getHrTimestamp() +
-        ' - offscreen not connected to receive the screenshot.',
-    );
-  }
+    offscreenPort.postMessage({ type: 'ssDataUrlRaw', data });
+  });
 }
 
 function getCurrentTabDomain(callback) {
@@ -718,86 +754,82 @@ function getCurrentTabDomain(callback) {
   });
 }
 
-// Inference Init Function
 async function startInference() {
   // Capturing screenshot
-  let startTakeSsTime = Date.now();
+  const startTakeSsTime = Date.now();
   ssDataUrlRaw = await captureScreenshot();
-  chrome.storage.local.set({ ssDataUrlRaw: ssDataUrlRaw });
-  let takeSsTime = Date.now() - startTakeSsTime;
+  await setToStorage({ ssDataUrlRaw });
+  const takeSsTime = Date.now() - startTakeSsTime;
   console.log(
     `[Background] - ${getHrTimestamp()} - Time to take screenshot: ${takeSsTime} ms`,
   );
   logMessage(`[Background] - screenshot capture time: ${takeSsTime} ms`);
 
   // Computing phash
-  let phashStartTime = Date.now();
-  let phashNew = await getImagePHash(ssDataUrlRaw);
-  let phashTotalTime = Date.now() - phashStartTime;
+  const phashStartTime = Date.now();
+  const phashNew = await getImagePHash(ssDataUrlRaw);
+  const phashTotalTime = Date.now() - phashStartTime;
   console.log(
     `[Background] - ${getHrTimestamp()} - Time to phash: ${phashTotalTime} ms`,
   );
   logMessage(`[Background] - phash computation time: ${phashTotalTime} ms`);
 
   // Selecting appropriate case
-  chrome.storage.local.get(['phash'], (result) => {
-    let phashCurrent = result.phash;
-    console.log(
-      `[Background] - ${getHrTimestamp()} - Retrieved phash value: ${phashCurrent}`,
-    );
-    // CASE 2 - No phash -> inference
-    if (phashCurrent === null || phashCurrent === 'NA') {
+  const result = await getFromStorage(['phash', 'classification']);
+  const phashCurrent = result.phash;
+
+  console.log(
+    `[Background] - ${getHrTimestamp()} - Retrieved phash value: ${phashCurrent}`,
+  );
+
+  if (phashCurrent === null || phashCurrent === 'NA') {
+    // CASE 2 - No phash
+    pureAllInfStartTime = Date.now();
+    await sendSsDataToOffscreen(ssDataUrlRaw);
+    await setToStorage({ phash: phashNew, hammingDistance: null });
+  } else {
+    const hammingDistance = getHammingDistance(phashCurrent, phashNew);
+
+    if (hammingDistance >= HAMMING_DIST_THOLD) {
+      // CASE 3 - HD > threshold
       pureAllInfStartTime = Date.now();
-      sendSsDataToOffscreen(ssDataUrlRaw);
-      chrome.storage.local.set({ phash: phashNew, hammingDistance: null });
+      await sendSsDataToOffscreen(ssDataUrlRaw);
+      await setToStorage({ phash: phashNew, hammingDistance });
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Updated local storage: Phash greater than threshold`,
+      );
     } else {
-      let hammingDistance = getHammingDistance(phashCurrent, phashNew);
-      // CASE 3 - HD > thold -> inference
-      if (hammingDistance >= HAMMING_DIST_THOLD) {
-        pureAllInfStartTime = Date.now();
-        sendSsDataToOffscreen(ssDataUrlRaw);
-        chrome.storage.local.set({ phash: phashNew, hammingDistance }, () => {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Updated local storage: Phash greater than threshold',
-          );
-        });
-        // CASE 4 - phash < thold -> keep current classification
-      } else {
-        let case4TotalTime = Date.now() - scanStartTime;
-        console.log(
-          `[Background] - ${getHrTimestamp()} - Case 4 (phash < thold) scan complete in ${case4TotalTime} ms.`,
-        );
-        logMessage(`[Background] - case 4 total time: ${case4TotalTime} ms`);
-        const case4Data = {
-          resizedDataUrl: 'NA',
-          method: 'Phash less than threshold',
-          infTime: 'NA',
-          ocrText: 'NA',
-          ocrTime: 'NA',
-          hammingDistance,
-          totalTime: case4TotalTime,
-        };
-        chrome.storage.local.set(case4Data, () => {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Local storage updated: (Case 4) Phash less than threshold.',
-          );
-        });
-        chrome.storage.local.get(['phash', 'classification'], (result) => {
-          saveScreenshot(
-            ssDataUrlRaw,
-            `${mainExtDownloadDir}/${sessionStartTimeHr}/${
-              result.classification.split('_')[0]
-            }`,
-            `${currentDomain}_${result.phash}_${getHrTimestamp()}`,
-          );
-        });
-      }
+      // CASE 4 - phash < threshold
+      const case4TotalTime = Date.now() - scanStartTime;
+      console.log(
+        `[Background] - ${getHrTimestamp()} - Case 4 (phash < thold) scan complete in ${case4TotalTime} ms.`,
+      );
+      logMessage(`[Background] - case 4 total time: ${case4TotalTime} ms`);
+
+      const case4Data = {
+        resizedDataUrl: 'NA',
+        method: 'Phash less than threshold',
+        infTime: 'NA',
+        ocrText: 'NA',
+        ocrTime: 'NA',
+        hammingDistance,
+        totalTime: case4TotalTime,
+      };
+      await setToStorage(case4Data);
+
+      const { classification } = await getFromStorage([
+        'phash',
+        'classification',
+      ]);
+      saveScreenshot(
+        ssDataUrlRaw,
+        `${mainExtDownloadDir}/${sessionStartTimeHr}/${
+          classification.split('_')[0]
+        }`,
+        `${currentDomain}_${phashNew}_${getHrTimestamp()}`,
+      );
     }
-  });
+  }
 }
 
 ////// DRIVERS
@@ -823,76 +855,109 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-function runSingleScan() {
-  chrome.storage.local.get(['mainToggleState'], (data) => {
-    if (data.mainToggleState) {
-      console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
-
-      scanStartTime = Date.now();
-
-      getCurrentTabDomain((domain) => {
-        currentDomain = domain;
-        // CASE 1
-        if (trancoSet.has(domain)) {
-          // if (false) {
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${domain}`,
-          );
-          let case1TotalTime = Date.now() - scanStartTime;
-          const case1Data = {
-            resizedDataUrl: 'NA',
-            classification: `benign_${getHrTimestamp()}`,
-            method: `Tranco whitelist - ${domain}`,
-            infTime: 'NA',
-            ocrText: 'NA',
-            ocrTime: 'NA',
-            phash: 'NA',
-            hammingDistance: 'NA',
-            totalTime: case1TotalTime,
-          };
-          chrome.storage.local.set(case1Data, () => {
-            console.log(
-              '[Background] - ' +
-                getHrTimestamp() +
-                ' - Local storage updated: (Case 1) Tranco whitelist.',
-            );
-          });
-          console.log(
-            `[Background] - ${getHrTimestamp()} - Case 1 (white list) scan completed in ${case1TotalTime} ms`,
-          );
-          logMessage(`[Background] - case 1 total time: ${case1TotalTime} ms`);
-
-          chrome.storage.local.get(
-            ['mainToggleState', 'ssToggleState'],
-            async (data) => {
-              if (data.mainToggleState && data.ssToggleState) {
-                const screenshot = await captureScreenshot();
-                saveScreenshot(
-                  screenshot,
-                  `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
-                  `${domain}_wl_${getHrTimestamp()}`,
-                );
-              }
-            },
-          );
-        } else {
-          console.log(
-            '[Background] - ' +
-              getHrTimestamp() +
-              ' - Domain not in Tranco set.',
-          );
-          startInference();
-        }
-      });
-    } else {
-      console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is OFF.');
-    }
+function getCurrentTabDomainPromise() {
+  return new Promise((resolve) => {
+    getCurrentTabDomain((domain) => {
+      resolve(domain);
+    });
   });
 }
 
+async function runSingleScan() {
+  const { mainToggleState, ssToggleState } = await chrome.storage.local.get([
+    'mainToggleState',
+    'ssToggleState',
+  ]);
+
+  if (!mainToggleState) {
+    console.log(`[Background] - ${getHrTimestamp()} - Toggle is OFF.`);
+    return;
+  }
+
+  console.log(`[Background] - ${getHrTimestamp()} - Toggle is ON.`);
+
+  scanStartTime = Date.now();
+
+  const domain = await getCurrentTabDomainPromise(); // use a promise version
+  currentDomain = domain;
+
+  if (trancoSet.has(domain)) {
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Domain in Tranco set: ${domain}`,
+    );
+
+    const case1TotalTime = Date.now() - scanStartTime;
+
+    const case1Data = {
+      resizedDataUrl: 'NA',
+      classification: `benign_${getHrTimestamp()}`,
+      method: `Tranco whitelist - ${domain}`,
+      infTime: 'NA',
+      ocrText: 'NA',
+      ocrTime: 'NA',
+      phash: 'NA',
+      hammingDistance: 'NA',
+      totalTime: case1TotalTime,
+    };
+
+    await chrome.storage.local.set(case1Data);
+
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Case 1 scan complete in ${case1TotalTime} ms`,
+    );
+    logMessage(`[Background] - case 1 total time: ${case1TotalTime} ms`);
+
+    if (ssToggleState) {
+      const screenshot = await captureScreenshot();
+      saveScreenshot(
+        screenshot,
+        `${mainExtDownloadDir}/${sessionStartTimeHr}/benign`,
+        `${domain}_wl_${getHrTimestamp()}`,
+      );
+    }
+  } else {
+    console.log(
+      `[Background] - ${getHrTimestamp()} - Domain NOT in Tranco set.`,
+    );
+    await startInference();
+  }
+}
+
 function runScans() {
-  scanId = setInterval(() => {
-    runSingleScan();
+  if (scanIntId) {
+    console.log(
+      '[Background] - ' +
+        getHrTimestamp() +
+        ' - Scan interval already running. Skipping start.',
+    );
+    return; // Already scanning
+  }
+  scanIntId = setInterval(async () => {
+    if (isScanning) {
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Previous scan still running, skipping this cycle.',
+      );
+      return;
+    }
+    scanStartTime = Date.now();
+    isScanning = true;
+    scanId = crypto.randomUUID();
+
+    try {
+      console.log(
+        `[Background] - ${getHrTimestamp()} - SCAN ${scanId} CYCLE STARTED!`,
+      );
+      await runSingleScan();
+    } catch (err) {
+      console.error('runSingleScan error:', err);
+    } finally {
+      isScanning = false;
+      console.log(
+        `[Background] - ${getHrTimestamp()} - SCAN ${scanId} CYCLE COMPLETE!`,
+      );
+    }
   }, SCAN_INTERVAL);
 }
 
