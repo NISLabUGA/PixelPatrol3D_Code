@@ -10,7 +10,7 @@ import { getHrTimestamp } from './utils';
 // Global settings
 const mainExtDownloadDir = 'pp_ext';
 const HASH_GRID_SIZE = 8;
-const HAMMING_DIST_THOLD = 3;
+const HAMMING_DIST_THOLD = 5;
 const SCAN_INTERVAL = 5 * 1000;
 const SAVE_INTERVAL = 2 * 60 * 1_000;
 
