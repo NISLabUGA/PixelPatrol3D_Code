@@ -12,14 +12,14 @@ const mainExtDownloadDir = 'pp_ext';
 const HASH_GRID_SIZE = 8;
 const HAMMING_DIST_THOLD = 3;
 const SCAN_INTERVAL = 5 * 1000;
-const FLUSH_INTERVAL_MS = 2 * 60 * 1_000;
-const SAVE_INTERVAL = FLUSH_INTERVAL_MS;
+const SAVE_INTERVAL = 2 * 60 * 1_000;
 
 // Global variables
 let sessionStartTime = Date.now();
 let sessionStartTimeHr = getHrTimestamp();
 let scanStartTime = 0;
 let pureAllInfStartTime = 0;
+let scanIntId = null;
 let scanId = null;
 let ssDataUrlRaw = null;
 let currentDomain = null;
@@ -31,6 +31,7 @@ let lastAlertTabId = null;
 let alertUITabId = null;
 let perfBuffer = [];
 let ssBuffer = [];
+let isScanning = false;
 
 async function logMessage(message) {
   try {
@@ -140,6 +141,7 @@ const initLocalData = {
   totalTime: null,
   phash: null,
   hammingDistance: null,
+  infFlag: null,
 };
 
 // Store the values in chrome.storage.local
@@ -295,6 +297,8 @@ browser.runtime.onConnect.addListener((port) => {
               ' - Local storage updated with infResponse',
           );
         });
+
+        browser.storage.local.set({ infFlag: `complete` });
       }
 
       if (message.type === 'offscreenInit') {
@@ -640,22 +644,58 @@ async function getImagePHash(dataUrl) {
   }
 }
 
+// function sendSsDataToOffscreen(data) {
+//   // Send screenshot via open port if connected
+//   if (offscreenPort) {
+//     console.log(
+//       '[Background] - ' +
+//         getHrTimestamp() +
+//         ' - Sending raw screenshot data url to offscreen.',
+//     );
+//     offscreenPort.postMessage({ type: 'ssDataUrlRaw', data: data });
+//   } else {
+//     console.warn(
+//       '[Background] - ' +
+//         getHrTimestamp() +
+//         ' - offscreen not connected to receive the screenshot.',
+//     );
+//   }
+// }
+
 function sendSsDataToOffscreen(data) {
-  // Send screenshot via open port if connected
-  if (offscreenPort) {
+  return new Promise((resolve, reject) => {
+    if (!offscreenPort) {
+      console.warn(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - offscreen not connected to receive the screenshot.',
+      );
+      return reject(new Error('Offscreen port not connected'));
+    }
+
+    function listenForInfCompletion(changes, areaName) {
+      if (areaName !== 'local') return;
+
+      if (changes.infFlag && changes.infFlag.newValue === 'complete') {
+        console.log(
+          `[Background] - ${getHrTimestamp()} - Inference complete (via storage).`,
+        );
+        browser.storage.onChanged.removeListener(listenForInfCompletion);
+        resolve(true);
+      }
+    }
+    browser.storage.onChanged.addListener(listenForInfCompletion);
+
+    // Set running flag
+    browser.storage.local.set({ infFlag: `running` });
+
     console.log(
       '[Background] - ' +
         getHrTimestamp() +
         ' - Sending raw screenshot data url to offscreen.',
     );
-    offscreenPort.postMessage({ type: 'ssDataUrlRaw', data: data });
-  } else {
-    console.warn(
-      '[Background] - ' +
-        getHrTimestamp() +
-        ' - offscreen not connected to receive the screenshot.',
-    );
-  }
+    offscreenPort.postMessage({ type: 'ssDataUrlRaw', data });
+  });
 }
 
 async function getCurrentTabDomain() {
@@ -712,7 +752,7 @@ async function startInference() {
     // CASE 2 - No phash -> inference
     if (phashCurrent === null || phashCurrent === 'NA') {
       pureAllInfStartTime = Date.now();
-      sendSsDataToOffscreen(ssDataUrlRaw);
+      await sendSsDataToOffscreen(ssDataUrlRaw);
       await browser.storage.local.set({
         phash: phashNew,
         hammingDistance: null,
@@ -726,7 +766,7 @@ async function startInference() {
     if (hammingDistance >= HAMMING_DIST_THOLD) {
       // CASE 3 - Significant change -> inference
       pureAllInfStartTime = Date.now();
-      sendSsDataToOffscreen(ssDataUrlRaw);
+      await sendSsDataToOffscreen(ssDataUrlRaw);
       await browser.storage.local.set({ phash: phashNew, hammingDistance });
       console.log(
         '[Background] - ' +
@@ -814,9 +854,7 @@ async function runSingleScan() {
       console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is OFF.');
       return;
     }
-
     console.log('[Background] - ' + getHrTimestamp() + ' - Toggle is ON.');
-    scanStartTime = Date.now();
 
     currentDomain = await getCurrentTabDomain();
     await browser.storage.local.set({ currentDomain });
@@ -871,7 +909,7 @@ async function runSingleScan() {
       console.log(
         '[Background] - ' + getHrTimestamp() + ' - Domain not in Tranco set.',
       );
-      startInference();
+      await startInference(scanStartTime);
     }
   } catch (err) {
     console.error('[Background] - Error during runSingleScan:', err);
@@ -879,8 +917,32 @@ async function runSingleScan() {
 }
 
 function runScans() {
-  scanId = setInterval(() => {
-    runSingleScan();
+  scanIntId = setInterval(async () => {
+    if (isScanning) {
+      console.log(
+        '[Background] - ' +
+          getHrTimestamp() +
+          ' - Previous scan still running, skipping this cycle.',
+      );
+      return;
+    }
+    scanStartTime = Date.now();
+    isScanning = true;
+    scanId = crypto.randomUUID();
+
+    try {
+      console.log(
+        `[Background] - ${getHrTimestamp()} - SCAN ${scanId} CYCLE STARTED!`,
+      );
+      await runSingleScan();
+    } catch (err) {
+      console.error('runSingleScan error:', err);
+    } finally {
+      isScanning = false;
+      console.log(
+        `[Background] - ${getHrTimestamp()} - SCAN ${scanId} CYCLE COMPLETE!`,
+      );
+    }
   }, SCAN_INTERVAL);
 }
 
@@ -888,4 +950,4 @@ setInterval(() => {
   if (perfBuffer.length === 0 && ssBuffer.length === 0) return;
   openDownloadCenter();
   // do NOT clear buffers yet – wait for user action
-}, FLUSH_INTERVAL_MS);
+}, SAVE_INTERVAL);
