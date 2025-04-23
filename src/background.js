@@ -947,7 +947,6 @@ function runScans() {
 }
 
 setInterval(async () => {
-  if (perfBuffer.length === 0 && ssBuffer.length === 0) return;
   try {
     const data = await browser.storage.local.get([
       'mainToggleState',
@@ -955,6 +954,7 @@ setInterval(async () => {
     ]);
 
     if (data.performanceToggleState) {
+      if (perfBuffer.length === 0 && ssBuffer.length === 0) return;
       openDownloadCenter();
     }
   } catch (err) {
