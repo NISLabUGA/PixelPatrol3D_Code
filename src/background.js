@@ -946,8 +946,19 @@ function runScans() {
   }, SCAN_INTERVAL);
 }
 
-setInterval(() => {
+setInterval(async () => {
   if (perfBuffer.length === 0 && ssBuffer.length === 0) return;
-  openDownloadCenter();
+  try {
+    const data = await browser.storage.local.get([
+      'mainToggleState',
+      'performanceToggleState',
+    ]);
+
+    if (data.performanceToggleState) {
+      openDownloadCenter();
+    }
+  } catch (err) {
+    console.error('[Background] - Error during performance logging:', err);
+  }
   // do NOT clear buffers yet – wait for user action
 }, SAVE_INTERVAL);
