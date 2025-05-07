@@ -64,8 +64,6 @@ https://addons.mozilla.org/en-US/firefox/addon/pixel-patrol-desktop-public/
 
 ## Loading the Extension From Source
 
-**Most people should start here to learn how to run the extension!**
-
 #### 1. You will need a build directory to load into the browser. There are 2 main ways to get this:
 
 1. **Download the ZIP file** associated with the latest release from the main GitHub page. Unzip the file — this folder is what you'll load into Firefox.
