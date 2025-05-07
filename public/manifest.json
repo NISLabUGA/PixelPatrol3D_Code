@@ -1,10 +1,10 @@
 {
-  "name": "Pixel Prowler",
-  "version": "0.1.4",
+  "name": "Pixel Patrol",
+  "version": "0.1.5",
   "manifest_version": 3,
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Pixel Prowler"
+    "default_title": "Pixel Patrol"
   },
   "background": {
     "service_worker": "background.js"

@@ -1,4 +1,4 @@
-# Pixel Prowler Browser Extention - Chrome
+# Pixel Patrol Browser Extention - Chrome
 
 **The web threat detection extension!**
 
