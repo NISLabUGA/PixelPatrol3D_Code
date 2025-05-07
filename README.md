@@ -54,8 +54,6 @@
 
 ## Loading the Extension
 
-\*\* **Most people should start here to learn how to run the extension!** \*\*
-
 #### 1. You will need a build directory to load into the browser. There are 2 main way to get this file:
 
 1. Download the ZIP file associated with the latest release from the main GitHub page. Unzip the file. This folder is what needs to be loaded into the browser.
