@@ -1,4 +1,4 @@
-# Pixel Patrol Browser Extention - Firefox
+# Pixel Patrol Browser Extention - Firefox Desktop
 
 **The web threat detection extension!**
 
