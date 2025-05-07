@@ -1,4 +1,4 @@
-# Pixel Prowler Browser Extention - Firefox
+# Pixel Patrol Browser Extention - Firefox
 
 **The web threat detection extension!**
 
