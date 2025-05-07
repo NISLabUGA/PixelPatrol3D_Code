@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Pixel Patrol",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Detects and analyzes screenshots for social engineering attacks.",
 
   "browser_action": {

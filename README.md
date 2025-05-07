@@ -66,6 +66,13 @@ https://addons.mozilla.org/en-US/firefox/addon/pixel-patrol-mobile-public/
 
 This section outlines how to sideload the extension on Firefox Nightly for Android using USB debugging and `web-ext`.
 
+#### Accessing Source Code
+
+1. You will need a build directory to load into the browser. There are 2 main ways to get this:
+   Download the ZIP file associated with the latest release from the main GitHub page. Unzip the file — this folder is what you'll load into Firefox.
+
+2. Build from source: Pull down the repository and follow the steps in the previous section to build the extension. Once the build is complete, it will generate a dist directory. This is what you'll load into Firefox.
+
 > ⚠️ This process is intended for **development and testing only**. Extensions sideloaded this way are not persistently installed — they will disappear after the app is restarted.
 
 #### On Your Android Device
