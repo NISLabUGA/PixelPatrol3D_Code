@@ -50,7 +50,7 @@ self.onmessage = async (e) => {
       // Lazy load the model session.
       if (!self.session) {
         const modelUrl = new URL(
-          '../public/models/m17_e3_960x540_512.onnx',
+          '../public/models/m33_e4_960x540_512.onnx',
           import.meta.url,
         ).toString();
         console.log(
