@@ -1,4 +1,4 @@
-# Pixel Patrol Browser Extention - Firefox Mobile
+# Pixel Patrol Browser Extention - Firefox Mobile (Android)
 
 **The web threat detection extension!**
 
@@ -52,39 +52,67 @@
 
 ---
 
-## Loading the Extension
+## Loading the Extension From Mozilla Add Ons
 
-**Most people should start here to learn how to run the extension!**
+1. Open Firefox and navigate to the following url:
 
-#### 1. You will need a build directory to load into the browser. There are 2 main ways to get this:
+https://addons.mozilla.org/en-US/firefox/addon/pixel-patrol-mobile-public/
 
-1. **Download the ZIP file** associated with the latest release from the main GitHub page. Unzip the file — this folder is what you'll load into Firefox.
+2. Select the `Add to Firefox` button
 
-2. **Build from source:** Pull down the repository and follow the steps in the previous section to build the extension. Once the build is complete, it will generate a `dist` directory. This is what you'll load into Firefox.
+---
 
-> ⚠️ Firefox does not yet support persistent installation of unpacked extensions. You’ll need to re-load the extension each time you restart the browser.
+## Loading the Extension From Source on Firefox Mobile (Android)
 
-#### 2. Open Firefox and Go to the Debugging Page
+This section outlines how to sideload the extension on Firefox Nightly for Android using USB debugging and `web-ext`.
 
-1. Open **Firefox**.
-2. In the address bar, type: `about:debugging#/runtime/this-firefox` and press **Enter**.
+> ⚠️ This process is intended for **development and testing only**. Extensions sideloaded this way are not persistently installed — they will disappear after the app is restarted.
 
-#### 3. Load the Temporary Extension
+#### On Your Android Device
 
-1. Click the **“Load Temporary Add-on…”** button.
-2. In the file picker, navigate to the folder containing your unpacked extension (you must select a file inside the folder — choose `manifest.json`).
-3. Firefox will load the extension immediately.
+1. **Install Firefox Nightly** from the Google Play Store.
+2. **Enable Developer Options:**
+   - Open your device **Settings** → **About phone**
+   - Tap **Build number** 7 times to enable Developer Mode.
+3. **Disable Auto Blocker (optional but recommended):**
+   - Go to **Settings** → **Security & privacy** → turn off **Auto Blocker**.
+4. **Enable USB Debugging:**
+   - Go to **Settings** → **System** → **Developer options** → turn on **USB debugging**.
+5. **Enable Remote Debugging in Firefox:**
+   - Open Firefox Nightly → Go to **Settings**
+   - Enable **Remote debugging via USB**
+   - (Optional) Enable **External download manager** for easier file handling
 
-#### 4. Verify the Extension Is Loaded
+#### On Your Laptop
 
-- The extension should appear in the list on the **This Firefox** debugging page.
-- If the extension has a browser action icon, it will show up in the toolbar.
+1. **Install the required tools:**
+   ```bash
+   sudo apt install android-platform-tools  # or brew install android-platform-tools on macOS
+   npm install --global web-ext
+   ```
+2. **Enable ADB connection:**
+   - Connect your phone to your laptop via USB
+   - In a terminal, check connection:
+     ```bash
+     adb devices
+     ```
+     You should see your device listed.
+3. **Run the extension on Firefox Android:**
 
-#### 5. Troubleshooting
+   ```bash
+   web-ext run -t firefox-android \
+     --adb-device YOUR_DEVICE_ID \
+     --firefox-apk org.mozilla.fenix
+   ```
 
-- **Extension not working?** Click the **"Inspect"** button next to your extension on the `about:debugging` page to open the developer console and check for errors.
-- **Not showing in toolbar?** Right-click the toolbar, click **"Customize Toolbar"**, and drag the icon into place if needed.
-- **Extension disappears after restart?** This is normal for temporary extensions. You’ll need to re-load it via `about:debugging`.
+   Replace `YOUR_DEVICE_ID` with the actual ID shown from `adb devices` (e.g., `R5CY22R195N`).
+
+4. **Wait for it to install and launch automatically** in Firefox Nightly on your phone.
+
+#### Verifying the Extension
+
+- Once the extension is loaded, it should appear in Firefox Nightly’s extension menu (three dots → **Add-ons**).
+- You can test it just like on desktop — including browser actions, permissions, and content scripts.
 
 ---
 
