@@ -52,7 +52,17 @@
 
 ---
 
-## Loading the Extension
+## Loading the Extension From Mozilla Add Ons
+
+1. Open Firefox and navigate to the following url:
+
+https://addons.mozilla.org/en-US/firefox/addon/pixel-patrol-desktop-public/
+
+2. Select the `Add to Firefox` button
+
+---
+
+## Loading the Extension From Source
 
 **Most people should start here to learn how to run the extension!**
 
