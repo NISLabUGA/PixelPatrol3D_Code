@@ -1,0 +1,29 @@
+general:
+  crawler_dir_names: ['pp_crawler_baseline', 'pp_crawler']
+  working_dir: ${PP_RESULTS_WD}
+  log_base_dir: '../'
+  max_workers: 44
+cons_imgs:
+  dest_base_dir: '${PP_RESULTS_WD}/cons_raw_img'
+cons_json:
+  dest_base_dir: '${PP_RESULTS_WD}/cons_raw_json'
+dedup_imgs:
+  source_base_dir: '${PP_RESULTS_WD}/cons_raw_img'
+  dest_base_dir: '${PP_RESULTS_WD}/cons_dedup'
+  json_base_dir: '${PP_RESULTS_WD}/cons_raw_json'
+  metadata_base_dir: '${PP_RESULTS_WD}'
+calc_phash:
+  hash_size: 128
+clustering:
+  dest_base_dir: '${PP_RESULTS_WD}/meta_clusters'
+  dist_met: 'euclidean'
+  dist_thold: 77.5
+  min_samples: 2
+tally_se:
+  dest_base_dir: '${PP_RESULTS_WD}/final'
+gather_mc:
+  dest_base_dir: '${PP_RESULTS_WD}/final'
+count_clicks:
+  dest_base_dir: '${PP_RESULTS_WD}/final'
+clean:
+  dest_dir: './runs'

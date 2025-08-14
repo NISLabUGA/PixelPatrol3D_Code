@@ -1,0 +1,38 @@
+### For Testing
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62210:22 \
+-p 65000:5000 \
+--network pp_nw \
+--name pp_api_cont_test \
+--hostname pp_api_cont_test \
+--gpus all \
+--shm-size=32g \
+sking115422/pp_api_cont:v2 /bin/bash -c "sudo service ssh start && /bin/bash"
+
+### For Automated Docker
+
+docker run \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+--name pp_api_cont_1 \
+--hostname pp_api_cont_1 \
+--network pp_nw \
+--gpus '"device=0"' \
+sking115422/pp_single_api_cont:v1
+
+docker run -d \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+--name pp_api_cont_1 \
+--hostname pp_api_cont_1 \
+--network pp_nw \
+--gpus '"device=0"' \
+sking115422/pp_single_api_cont:v1
+
+docker run -d \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+--name pp_api_cont_2 \
+--hostname pp_api_cont_2 \
+--network pp_nw \
+--gpus '"device=1"' \
+sking115422/pp_single_api_cont:v1

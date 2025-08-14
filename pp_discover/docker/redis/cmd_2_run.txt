@@ -1,0 +1,15 @@
+### Setup Redis Server
+
+docker run -d \
+  --name pp_redis_server \
+  --hostname pp_redis_server \
+  --network pp_nw \
+  redis redis-server --port 63790
+
+### Debugging Commands
+
+redis-cli -p 63790
+
+INFO stats
+
+MONITOR

@@ -1,0 +1,40 @@
+{
+  "name": "mypyppeteer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "capture_screenshots.js",
+  "scripts": {
+    "start": "nodemon capture_screenshot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "irfan ozen",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^6.4.0",
+    "csv-parser": "^3.0.0",
+    "findit": "^2.0.0",
+    "gm": "^1.23.1",
+    "http-mitm-proxy": "^0.9.0",
+    "neat-csv": "^5.2.0",
+    "nodemon": "^2.0.13",
+    "normalize-url": "^7.0.2",
+    "puppeteer": "^13.0.0",
+    "puppeteer-extra": "^3.2.3",
+    "puppeteer-extra-plugin-stealth": "^2.9.0",
+    "puppeteer-extra-plugin-user-preferences": "^2.3.1",
+    "simple-node-logger": "^21.8.12",
+    "tld-extract": "^2.0.1",
+    "zip-local": "^0.3.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb": "^19.0.4",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-prettier": "^5.2.3",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "prettier": "^3.5.3"
+  }
+}

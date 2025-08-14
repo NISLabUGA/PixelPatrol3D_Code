@@ -1,0 +1,78 @@
+# Create PP docker network
+
+docker network create pp_nw
+
+# PP API Container
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62210:22 \
+-p 65000:5000 \
+--network pp_nw \
+--name pp_api_cont_1 \
+--hostname pp_api_cont_1 \
+--gpus all \
+--shm-size=32g \
+sking115422/pp_crawler_cont:v1 /bin/bash -c "sudo service ssh start && /bin/bash"
+
+# PP Crawler Container (No GUI)
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62221:22 \
+--network pp_nw \
+--name pp_crawler_cont_1 \
+--hostname pp_crawler_cont_1 \
+sking115422/pp_crawler_cont:v1 /bin/bash -c "sudo service ssh start && /bin/bash"
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62236:22 \
+--network pp_nw \
+--name pp_crawler_bl_cont_6 \
+--hostname pp_crawler_bl_cont_6 \
+sking115422/pp_crawler_cont:v1 /bin/bash -c "sudo service ssh start && /bin/bash"
+
+# PP Crawler Container (GUI)
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62221:22 \
+-p 59001:5901 \
+--network pp_nw \
+--name pp_crawler_cont_1 \
+--hostname pp_crawler_cont_1 \
+sking115422/pp_crawler_cont:v2 /bin/bash -c "sudo service ssh start && /bin/bash"
+
+docker run -d -i -t \
+-v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+-p 62221:22 \
+-p 59001:5901 \
+--network pp_nw \
+--name pp_crawler_cont_1 \
+--hostname pp_crawler_cont_1 \
+sking115422/pp_crawler_cont:v3
+
+# Containerized Browsing
+
+docker network create iso_nw
+
+docker run -d \
+    --network iso_nw \
+    --name iso_ff \
+    --hostname iso_ff \
+    -p 5800:5800 \
+    jlesage/firefox
+
+# Docker Crawling Run Commands
+
+docker exec pp_crawler_cont_2 bash -c "/home/user/miniconda3/condabin/conda activate pp_api_venv && python crawl_url_list.py /mnt/pp_pkg/data/seed_urls/test1.csv chrome_win test4"
+
+docker exec pp_crawler_cont_2 /home/user/miniconda3/condabin/conda run -n pp_api_env python /mnt/pp_pkg/pp_crawler/crawl_url_list.py /mnt/pp_pkg/data/seed_urls/test1.csv chrome_win test4
+
+# Docker Headful Auto Run Container
+
+docker run \
+-v /mnt/lts/nis_lab_research/pp_pkg/pp_crawler_baseline:/mnt/crawler \
+--network pp_nw \
+pp_crawler_xvfb_cont:v1 https://ww17.0123movie.net/movie/oppenheimer-1630855498.html 123 10000 chrome_win SE test2
