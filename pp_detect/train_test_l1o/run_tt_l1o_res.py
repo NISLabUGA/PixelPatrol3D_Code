@@ -1,3 +1,9 @@
+"""
+Description
+
+End-to-end PyTorch training + evaluation pipeline for a multimodal classifier that fuses visual (MobileNetV3) and text (BERT-mini) features. The script supports multi-GPU Distributed Data Parallel training, optional fine-tuning and staged unfreezing, focal/weighted CE loss for class imbalance, and per-epoch validation with rich metrics (accuracy, precision, recall, F1, ROC/AUC, DR@1%FPR). It iterates over multiple leave-one-out style cycles on disk, saves artifacts (checkpoints, ROC plots, confusion folders), and logs progress. No model code or logic is altered—only comments are added here for clarity.
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -23,42 +29,53 @@ from datetime import datetime
 import shutil
 import random
 
+# Configure default rendezvous for torch.distributed (single-node, localhost RDV)
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "29500"
 
 # =========================
 # ===== CONFIGURATION =====
 # =========================
-TARGET_IMG_SIZE = (1920, 1080)
-IMG_SCALE_FACTOR = 0.5
+# Image handling
+TARGET_IMG_SIZE = (1920, 1080)   # logical canvas used for padding before transforms
+IMG_SCALE_FACTOR = 0.5           # scale down target canvas for compute efficiency
+
+# Training hyperparameters
 BATCH_SIZE = 64
 EPOCHS = 10
-MAX_BENIGN_TEST_SAMPLES = 500
+MAX_BENIGN_TEST_SAMPLES = 500    # cap benign test samples per eval to control runtime
 SEED = 123
 
-USE_EARLY_STOPPING = False
+USE_EARLY_STOPPING = False       # global toggle for early stopping in main loop
 # LEARNING_RATE = 5e-5
-LEARNING_RATE = 2e-6
-USE_SCHEDULER = False # Set to False to disable scheduler
-SCHEDULER_TYPE = "onecycle"  # Options: "cosine", "onecycle", "step"
+LEARNING_RATE = 2e-6             # conservative LR (text+vision often needs small LR)
+USE_SCHEDULER = False            # set True to enable LR schedulers below
+SCHEDULER_TYPE = "onecycle"      # "cosine", "onecycle", or "step"
 WEIGHT_DECAY = 5e-4
+
+# Dropout rates for different submodules
 DROPOUT_VIS = 0.3
 DROPOUT_TXT = 0.3
-DROPOUT_FL = 0.6
+DROPOUT_FL = 0.6                  # fusion head dropout
+
+# Text tokenization
 MAX_TOKEN_LENGTH = 512
 
+# Backbone freezing / staged unfreezing knobs
 FREEZE_BACKBONE_VIS = False
-FINE_TUNE_LAYERS_VIS = 8
-UNFREEZE_AFTER_VIS = 0
+FINE_TUNE_LAYERS_VIS = 8          # how many final layers to unfreeze when scheduled
+UNFREEZE_AFTER_VIS = 0            # epoch index to begin unfreezing visual layers
 
 FREEZE_BACKBONE_TEXT = False
-FINE_TUNE_LAYERS_TEXT = 3
-UNFREEZE_AFTER_TEXT = 0
+FINE_TUNE_LAYERS_TEXT = 3         # how many final Transformer blocks to unfreeze
+UNFREEZE_AFTER_TEXT = 0           # epoch index to begin unfreezing text layers
 
+# Device / tokenizer / workers
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 TOKENIZER = AutoTokenizer.from_pretrained("prajjwal1/bert-mini")
-NUM_WORKERS = 20
+NUM_WORKERS = 20                  # dataloader workers (tune per filesystem/CPU)
 
+# Optional: evaluate pre-trained checkpoints instead of training
 USE_PT_MODEL = False
 PT_MODEL_PATHS = [
     '/path/to/out_l1o_res/1.mclus_excluded/model.pth',
@@ -73,35 +90,38 @@ PT_MODEL_PATHS = [
     '/path/to/out_l1o_res/10.mclus_excluded/model.pth'
 ]
 
-ROOT_DIR = "../../pp3d_data/l1o/rq2/l1o_res/"
+# Dataset roots and multi-cycle orchestration
+ROOT_DIR = "../../pp3d_data/l1o/rq2/l1o_res/"   # cycles live here (1.mclus_excluded, ...)
 BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
-OUT_BASE = "./out_l1o_res"   # base output directory for all cycles
-WORLD_SIZE = torch.cuda.device_count()
+OUT_BASE = "./out_l1o_res"                        # per-cycle output root
+WORLD_SIZE = torch.cuda.device_count()             # DDP world size = number of GPUs
 
-# collect and sort cycle folders (1.mclus_excluded, 2.mclus_excluded, …)
+# Collect cycle directories in sorted order for deterministic iteration
 cycle_dirs = sorted([
     os.path.join(ROOT_DIR, d)
     for d in os.listdir(ROOT_DIR)
     if os.path.isdir(os.path.join(ROOT_DIR, d))
 ])
 
+# Control what misclassified examples get saved out as images+texts
 SHOW_FP = True
 SHOW_FN = True
 SHOW_TP = False
 SHOW_TN = False
 
-# Options: "ce", "weighted_ce", or "focal"
+# Loss selection: standard CE, class-weighted CE, or Focal Loss
 LOSS_TYPE = "weighted_ce"
 
-# Default for Focal Loss
+# Focal Loss hyperparameters (if enabled)
 # ALPHA = 0.25
 # GAMMA = 2.0
-
-# Potentially better parameters 
+# Tuned values for stronger down-weighting of easy examples / up-weighting rare class
 ALPHA = 0.75
 GAMMA = 3.0
 
+
 def save_config(cycle_out_dir, se_train_dir, benign_train_dir, se_test_dir, benign_test_dir):
+    """Dump the run configuration and paths to a notes.txt file under the cycle directory."""
     config_text = f"""
 ======== Experiment Configuration ========
 Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -159,11 +179,15 @@ USE_EARLY_STOPPING: {USE_EARLY_STOPPING}
         f.write(config_text.strip())
 
 # ----------  Resolution helpers  ----------
+# Extract trailing WxH token from filename stems (e.g., "..._1920x1080") for filtering
+
 def extract_resolution_from_filename(fname: str) -> str | None:
     stem = os.path.splitext(os.path.basename(fname))[0]
     res_part = stem.rsplit("_", 1)[-1]
     return res_part if "x" in res_part else None
 
+
+# Enumerate subdirectories inside SE test directory as known resolutions to exclude in benign
 
 def get_resolutions_from_se_test(se_test_dir: str) -> set[str]:
     return {
@@ -176,6 +200,7 @@ def get_resolutions_from_se_test(se_test_dir: str) -> set[str]:
 # ===== EARLY STOPPING =====
 # ==========================
 class EarlyStopping:
+    """Simple early stopping on a monitored loss with patience and min_delta."""
     def __init__(self, patience=1, min_delta=0.001, mode="val_loss"):
         assert mode in ["val_loss", "train_loss"], "Invalid mode! Choose 'val_loss' or 'train_loss'."
         self.patience = patience
@@ -210,7 +235,7 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, inputs, targets):
-        # Standard cross-entropy per sample
+        # Per-sample CE; then reweight by (1-pt)^gamma and alpha
         ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-ce_loss)  # Probability of correctly classified sample
         focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
@@ -226,6 +251,14 @@ class FocalLoss(nn.Module):
 # ===== DATASET CLASS =====
 # =========================
 class SEDataset(Dataset):
+    """Custom dataset that pairs images with adjacent .txt files and labels.
+
+    - se_dir: root with malicious image+text pairs (label=1)
+    - benign_dir: root with benign image+text pairs (label=0)
+    - exclude_resolutions: drop benign samples whose filename suffix matches SE test resolutions
+    - include_metadata: when True, returns PIL image and source text path for visualization/copying
+    - max_benign_samples: optional random downsample for benign class (reproducible via seed)
+    """
     def __init__(
         self, 
         se_dir, 
@@ -287,6 +320,7 @@ class SEDataset(Dataset):
         return len(self.image_paths)
     
     def __getitem__(self, idx):
+        # Load paired data
         img_path = self.image_paths[idx]
         txt_path = os.path.splitext(img_path)[0] + ".txt"
         label = self.labels[idx]
@@ -294,11 +328,11 @@ class SEDataset(Dataset):
         
         image = Image.open(img_path).convert("RGB")
         
+        # Two-stage resizing: safe downscale to fit target, then global downscale for compute
         orig_width, orig_height = image.size
         target_width, target_height = self.target_size
 
         # First scale to make sure image is not larger than target
-
         safe_scale_factor = min(target_width / orig_width, target_height / orig_height)
 
         if safe_scale_factor < 1.0:
@@ -309,7 +343,6 @@ class SEDataset(Dataset):
             safe_image = image
 
         # Second scale to downsize image for processing
-
         safe_original_size = safe_image.size
         new_target_size = tuple(int(dim * IMG_SCALE_FACTOR) for dim in self.target_size)
         new_og_size = tuple(int(dim * IMG_SCALE_FACTOR) for dim in safe_original_size)
@@ -327,6 +360,7 @@ class SEDataset(Dataset):
         else:
             image_tensor = transforms.ToTensor()(padded_image)
         
+        # Tokenize paired text
         tokens = TOKENIZER(
             text, 
             padding='max_length', 
@@ -356,6 +390,7 @@ class SEDataset(Dataset):
 # ===========================
 # ===== TRANSFORMATIONS =====
 # ===========================
+# Simple tensor+normalize; images were already padded/centered above
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -365,6 +400,7 @@ transform = transforms.Compose([
 # ===== MODEL CLASSES ===
 # =======================
 class VisualCNN(nn.Module):
+    """Visual backbone using torchvision MobileNetV3-Small with optional freezing."""
     def __init__(self, freeze_backbone=FREEZE_BACKBONE_VIS, 
                  fine_tune_layers=FINE_TUNE_LAYERS_VIS, 
                  dropout_rate=DROPOUT_VIS):
@@ -383,6 +419,7 @@ class VisualCNN(nn.Module):
         return self.dropout(features)
 
 class TextBERT(nn.Module):
+    """Text backbone using HuggingFace BERT-mini; outputs a 128-dim projection."""
     def __init__(self, model_name="prajjwal1/bert-mini", 
                  freeze_backbone=FREEZE_BACKBONE_TEXT, 
                  fine_tune_layers=FINE_TUNE_LAYERS_TEXT, 
@@ -403,6 +440,7 @@ class TextBERT(nn.Module):
         return self.fc(self.dropout(output.pooler_output))
 
 class SEClassifier(nn.Module):
+    """Fusion head that concatenates visual and text features, then classifies."""
     def __init__(self, 
                  visual_feat_dim=576, 
                  text_feat_dim=128, 
@@ -432,6 +470,8 @@ class SEClassifier(nn.Module):
 # ===== MODEL EVALUATION    ========================
 # ==================================================
 
+# Collate that preserves PIL images and source text paths for visualization
+
 def custom_collate(batch):
     pil_images = [item[0] for item in batch]
     image_tensors = torch.stack([item[1] for item in batch], dim=0)
@@ -441,10 +481,17 @@ def custom_collate(batch):
     text_file_paths = [item[5] for item in batch]
     return pil_images, image_tensors, input_ids, attention_masks, labels, text_file_paths
 
+
 def evaluate_model(model, se_dirs, benign_dirs,
                    transform, device, epoch,
                    batch_size, num_workers,
                    results_base_dir, criterion):
+    """Evaluate a trained model on provided SE/benign directories and emit metrics/artifacts.
+
+    - Saves confusion buckets (tn/fp/fn/tp) with image+text samples based on SHOW_* toggles
+    - Writes metrics to eval_metrics.txt and plots ROC curve
+    - Returns list of average test losses (one per provided eval set)
+    """
 
     model.eval()
 
@@ -494,6 +541,7 @@ def evaluate_model(model, se_dirs, benign_dirs,
                 all_labels.extend(labels.cpu().numpy().tolist())
                 all_probs.extend(probs.cpu().numpy().tolist())
 
+                # Save visual confusion examples based on configured toggles
                 for i, pil_img in enumerate(pil_images):
                     pred_label = preds[i].item()
                     true_label = labels[i].item()
@@ -600,6 +648,7 @@ def evaluate_model(model, se_dirs, benign_dirs,
 # ==================================================
 # ===== MAIN TRAINING FUNCTION (WITH DDP)    =======
 # ==================================================
+
 def train(rank,
           world_size,
           se_train_dir,
@@ -621,6 +670,7 @@ def train(rank,
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
+    # Only rank 0 sets up output dirs and logging
     if rank == 0:
         os.makedirs(cycle_out_dir, exist_ok=True)
         save_config(cycle_out_dir, se_train_dir, benign_train_dir, se_test_dir, benign_test_dir)
@@ -860,6 +910,7 @@ def train(rank,
 # ===== MAIN EXECUTION  ======
 # ============================
 if __name__ == "__main__":
+    # Iterate over all cycles (e.g., 1.mclus_excluded,...), spawning a DDP job per cycle
     for idx, cycle_path in enumerate(cycle_dirs):
         cycle_name = os.path.basename(cycle_path)
         # derive train/test subfolders:

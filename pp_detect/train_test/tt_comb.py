@@ -1,3 +1,11 @@
+""" Description
+This script trains and evaluates a multimodal binary classifier for security-event (SE) vs. benign samples using Distributed Data Parallel (DDP). 
+Images are processed with a MobileNetV3-Small backbone and paired text is encoded with a BERT-mini model; their features are concatenated and 
+fed to a small MLP for classification. The pipeline includes configurable losses (weighted cross-entropy or focal), optional schedulers, 
+early-stopping logic (disabled by default), checkpointing each epoch, and comprehensive evaluation on multiple validation sets with metrics, 
+ROC/AUC, a detection-rate-at-1%-FPR readout, and saving example TP/FP/FN/TN cases (image + matched text) for qualitative analysis.
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -24,46 +32,56 @@ import shutil
 import sys
 
 
+# ---- DDP rendezvous defaults for single-node multi-GPU runs ----
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "29500"
 
 # =========================
 # ===== CONFIGURATION =====
 # =========================
-TARGET_IMG_SIZE = (1920, 1080)
-IMG_SCALE_FACTOR = 0.5
+# Image handling and training hyperparameters
+TARGET_IMG_SIZE = (1920, 1080)   # Target canvas for zero-padding (before scaling by IMG_SCALE_FACTOR)
+IMG_SCALE_FACTOR = 0.5           # Downscale factor applied to the padded canvas (memory/perf trade-off)
 BATCH_SIZE = 64
 EPOCHS = 15
 
-USE_EARLY_STOPPING = False
+# Training control toggles
+USE_EARLY_STOPPING = False       # Early stopping is implemented but disabled by default
 # LEARNING_RATE = 5e-5
 LEARNING_RATE = 5e-6
-USE_SCHEDULER = False # Set to False to disable scheduler
-SCHEDULER_TYPE = "onecycle"  # Options: "cosine", "onecycle", "step"
+USE_SCHEDULER = False            # Enable/disable LR scheduler globally
+SCHEDULER_TYPE = "onecycle"      # "cosine", "onecycle", or "step" (honored only if USE_SCHEDULER=True)
 WEIGHT_DECAY = 5e-4
-DROPOUT_VIS = 0.3
-DROPOUT_TXT = 0.3
-DROPOUT_FL = 0.6
-MAX_TOKEN_LENGTH = 512
+DROPOUT_VIS = 0.3                # Dropout after the visual backbone
+DROPOUT_TXT = 0.3                # Dropout before text projection
+DROPOUT_FL = 0.6                 # Dropout before fusion MLP
+MAX_TOKEN_LENGTH = 512           # Max tokens for BERT tokenizer
 
+# Fine-tuning / freezing strategies for backbones
 FREEZE_BACKBONE_VIS = False
-FINE_TUNE_LAYERS_VIS = 8 # No longer used
-UNFREEZE_AFTER_VIS = 0
+FINE_TUNE_LAYERS_VIS = 8         # Kept for logging; not functionally used when FREEZE_BACKBONE_VIS=False
+UNFREEZE_AFTER_VIS = 0           # Epoch when last-N layers of visual backbone would be unfrozen (if frozen)
 
 FREEZE_BACKBONE_TEXT = False
-FINE_TUNE_LAYERS_TEXT = 3 # No longer used
-UNFREEZE_AFTER_TEXT = 5
+FINE_TUNE_LAYERS_TEXT = 3        # Kept for logging; not functionally used when FREEZE_BACKBONE_TEXT=False
+UNFREEZE_AFTER_TEXT = 5          # Epoch when last-N transformer layers of BERT would be unfrozen (if frozen)
 
+# Runtime device & tokenizer
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 TOKENIZER = AutoTokenizer.from_pretrained("prajjwal1/bert-mini")
-NUM_WORKERS = 20
+NUM_WORKERS = 20                 # DataLoader workers (tune for your storage/CPU)
 
+# Optional pretrained model inference-only path
 USE_PT_MODEL = False
 PT_MODEL_PATH = "../models/m33_ep4.pth"
 
+# -------------------------
+# Training/validation data
+# -------------------------
 SE_DIR = "../../pp3d_data/train/malicious/train_19536"
 BENIGN_DIR = "../../pp3d_data/train/benign/train_100k"
 
+# Multiple validation splits to evaluate generalization
 VAL_SE_DIR_LIST = [
     "../../pp3d_data/test/rq1/malicious/test_500",
     "../../pp3d_data/test/rq4/malicious/test_138"
@@ -74,29 +92,35 @@ VAL_BENIGN_DIR_LIST = [
     "../../pp3d_data/test/rq4/benign/test_500"
 ]
 
+# Control saving of qualitative results by outcome type
 SHOW_FP = True
 SHOW_FN = True
 SHOW_TP = True
 SHOW_TN = True
 
+# Output root for logs, checkpoints, metrics, and qualitative samples
 OUT_DIR = f"./out/comb"
 os.makedirs(OUT_DIR, exist_ok=True)
 
+# -------------------------
+# Loss selection & params
+# -------------------------
 # Options: "ce", "weighted_ce", or "focal"
 LOSS_TYPE = "weighted_ce"
 
+# Focal Loss hyperparameters (used only if LOSS_TYPE == "focal")
 # Default for Focal Loss
 # ALPHA = 0.25
 # GAMMA = 2.0
 
-# Potentially better parameters 
+# Tuned/alternative parameters
 ALPHA = 0.75
 GAMMA = 3.0
 
 # ==========================
 # ======= LOGGING ==========
 # ==========================
-# Set up logging
+# Set up structured logging to both console and file
 log_file = os.path.join(OUT_DIR, "training_log.log")
 logging.basicConfig(
     filename=log_file,
@@ -106,11 +130,12 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Create a logging function
+# Helper to mirror logs to stdout for real-time visibility
 def log_message(message):
     print(message)  # Print to console
     logging.info(message)  # Save to log file
 
+# Persist a snapshot of key hyperparameters and paths for reproducibility
 def save_config(output_dir):
     config_text = f"""
 ======== Experiment Configuration ========
@@ -172,6 +197,7 @@ USE_EARLY_STOPPING: {USE_EARLY_STOPPING}
 # =================================
 # ===== TO LOAD PT MODEL ==========
 # =================================
+# Supports loading either a full nn.Module checkpoint or a state_dict
 def load_pretrained_model(model_path: str, device: torch.device):
     obj = torch.load(model_path, map_location=device, weights_only=False)
 
@@ -185,6 +211,7 @@ def load_pretrained_model(model_path: str, device: torch.device):
     return model
 
 
+# Entry point for evaluation-only runs using a pretrained model
 def run_inference_only():
 
     print("Testing PT model only!")
@@ -212,6 +239,7 @@ def run_inference_only():
 # ==========================
 # ===== EARLY STOPPING =====
 # ==========================
+# Minimal early-stopping utility monitoring either validation or training loss
 class EarlyStopping:
     def __init__(self, patience=1, min_delta=0.001, mode="val_loss"):
         assert mode in ["val_loss", "train_loss"], "Invalid mode! Choose 'val_loss' or 'train_loss'."
@@ -264,6 +292,7 @@ class FocalLoss(nn.Module):
 # =========================
 class SEDataset(Dataset):
     def __init__(self, se_dir, benign_dir, transform=None, include_metadata=False):
+        # Aggregate paired (image, text) paths across SE and benign roots
         self.image_paths = []
         self.text_data = []
         self.labels = []
@@ -289,6 +318,7 @@ class SEDataset(Dataset):
         return len(self.image_paths)
     
     def __getitem__(self, idx):
+        # Load image and paired text; compute label
         img_path = self.image_paths[idx]
         txt_path = os.path.splitext(img_path)[0] + ".txt"
         label = self.labels[idx]
@@ -296,11 +326,10 @@ class SEDataset(Dataset):
         
         image = Image.open(img_path).convert("RGB")
         
+        # --- Two-stage resizing/padding pipeline ---
+        # 1) Scale the image down (if necessary) to fit safely within TARGET_IMG_SIZE while preserving aspect ratio.
         orig_width, orig_height = image.size
         target_width, target_height = self.target_size
-
-        # First scale to make sure image is not larger than target
-
         safe_scale_factor = min(target_width / orig_width, target_height / orig_height)
 
         if safe_scale_factor < 1.0:
@@ -310,25 +339,25 @@ class SEDataset(Dataset):
         else:
             safe_image = image
 
-        # Second scale to downsize image for processing
-
+        # 2) Downscale both the target canvas and the (already safe) image by IMG_SCALE_FACTOR for compute savings.
         safe_original_size = safe_image.size
         new_target_size = tuple(int(dim * IMG_SCALE_FACTOR) for dim in self.target_size)
         new_og_size = tuple(int(dim * IMG_SCALE_FACTOR) for dim in safe_original_size)
         ds_image = safe_image.resize(new_og_size, Image.Resampling.LANCZOS)
         
-        # Create a new (padded) image of target size and paste the resized image centered.
+        # Center-pad the downscaled image into a black canvas of size new_target_size to maintain spatial consistency.
         padded_image = Image.new("RGB", new_target_size, (0, 0, 0))
         paste_position = ((new_target_size[0] - new_og_size[0]) // 2,
                           (new_target_size[1] - new_og_size[1]) // 2)
         padded_image.paste(ds_image, paste_position)
         
-        # For model inference, apply the transformation to get a tensor.
+        # Convert to tensor and normalize (if transform provided)
         if self.transform:
             image_tensor = self.transform(padded_image)
         else:
             image_tensor = transforms.ToTensor()(padded_image)
         
+        # Tokenize paired text to fixed length for BERT-mini
         tokens = TOKENIZER(
             text, 
             padding='max_length', 
@@ -338,6 +367,7 @@ class SEDataset(Dataset):
         )
         label_tensor = torch.tensor(self.labels[idx], dtype=torch.long)
 
+        # Optionally return metadata for qualitative dump (paths + PIL)
         if self.include_metadata:
             return (
                 padded_image,                             # for saving mis-classifications
@@ -358,6 +388,7 @@ class SEDataset(Dataset):
 # ===========================
 # ===== TRANSFORMATIONS =====
 # ===========================
+# Simple pixel normalization to [-1, 1] range
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -371,6 +402,7 @@ class VisualCNN(nn.Module):
                  fine_tune_layers=FINE_TUNE_LAYERS_VIS, 
                  dropout_rate=DROPOUT_VIS):
         super(VisualCNN, self).__init__()
+        # MobileNetV3-Small as visual feature extractor; classifier replaced by Identity
         self.backbone = models.mobilenet_v3_small(pretrained=True)
 
         if freeze_backbone:
@@ -390,6 +422,7 @@ class TextBERT(nn.Module):
                  fine_tune_layers=FINE_TUNE_LAYERS_TEXT, 
                  dropout_rate=DROPOUT_TXT):
         super(TextBERT, self).__init__()
+        # Lightweight BERT encoder; output pooled embedding projected to 128-D
         self.bert = AutoModel.from_pretrained(model_name)
 
         # Freeze all layers if freeze_backbone is True
@@ -413,6 +446,7 @@ class SEClassifier(nn.Module):
                  freeze_backbone_text=FREEZE_BACKBONE_TEXT,
                  dropout_rate = DROPOUT_FL):
         super(SEClassifier, self).__init__()
+        # Independent backbones for image and text; features concatenated for fusion MLP
         self.visual_cnn = VisualCNN(freeze_backbone=freeze_backbone_vis)
         self.text_bert = TextBERT(freeze_backbone=freeze_backbone_text)
 
@@ -434,6 +468,7 @@ class SEClassifier(nn.Module):
 # ===== MODEL EVALUATION    ========================
 # ==================================================
 
+# Custom collate to carry PIL images and file paths for qualitative dumps
 def custom_collate(batch):
     pil_images = [item[0] for item in batch]
     image_tensors = torch.stack([item[1] for item in batch], dim=0)
@@ -443,6 +478,7 @@ def custom_collate(batch):
     text_file_paths = [item[5] for item in batch]
     return pil_images, image_tensors, input_ids, attention_masks, labels, text_file_paths
 
+# Runs evaluation on each (SE_dir, benign_dir) pair; writes metrics, ROC, arrays, and qualitative samples
 def evaluate_model(model, se_dirs, benign_dirs,
                    transform, device, epoch,
                    batch_size, num_workers,
@@ -491,6 +527,7 @@ def evaluate_model(model, se_dirs, benign_dirs,
                 all_labels.extend(labels.cpu().numpy().tolist())
                 all_probs.extend(probs.cpu().numpy().tolist())
 
+                # Save qualitative examples into tn/fp/fn/tp folders with paired text copies
                 for i, pil_img in enumerate(pil_images):
                     pred_label = preds[i].item()
                     true_label = labels[i].item()
@@ -577,14 +614,14 @@ def evaluate_model(model, se_dirs, benign_dirs,
         plt.savefig(roc_path)
         plt.close()
 
-        # detection rate @1% FPR
+        # detection rate @1% FPR (locates first threshold at/above 1% FPR)
         target_fpr = 0.01
         idx_fpr = np.where(fpr >= target_fpr)[0][0]
         dr1 = tpr[idx_fpr]
         with open(metrics_path, "a") as f:
             f.write(f"Detection Rate @ 1% FPR: {dr1:.4f}\n")
 
-        # save raw arrays
+        # save raw arrays for post-hoc analysis
         np.save(os.path.join(results_dir, "y_true.npy"), all_labels)
         np.save(os.path.join(results_dir, "y_scores.npy"), all_probs)
 
@@ -605,8 +642,18 @@ def train(rank,
           fine_tune_layers_vis=FINE_TUNE_LAYERS_VIS,
           unfreeze_after_text=UNFREEZE_AFTER_TEXT,  
           fine_tune_layers_text=FINE_TUNE_LAYERS_TEXT):
+    """
+    DDP training entrypoint for each process/GPU:
+      - Builds dataset/dataloader with class-weight computation
+      - Initializes multimodal model and wraps with DDP
+      - Selects loss (weighted CE or focal) and optimizer
+      - Optionally configures LR scheduler
+      - Supports staged unfreezing of backbones if requested
+      - Runs training loop with per-batch logs and per-epoch validation on rank 0
+      - Saves checkpoints and can trigger early stopping (if enabled)
+    """
     
-    # Initialize the process group for distributed training
+    # Initialize the process group for distributed training (NCCL backend for GPUs)
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
@@ -626,7 +673,7 @@ def train(rank,
     )
     class_weights = torch.tensor(class_weights_np, dtype=torch.float).to(rank)
     
-    # Create samplers/loaders
+    # Distributed sampler ensures each rank sees a unique shard each epoch
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         train_dataset, 
         num_replicas=world_size, 
@@ -641,7 +688,7 @@ def train(rank,
         pin_memory=True
     )
     
-    # Initialize model
+    # Initialize model and wrap with DDP
     model = SEClassifier(
         freeze_backbone_vis=FREEZE_BACKBONE_VIS, 
         freeze_backbone_text=FREEZE_BACKBONE_TEXT
@@ -659,7 +706,7 @@ def train(rank,
         criterion = nn.CrossEntropyLoss()  # fallback
         log_message(f"[Rank {rank}] Using standard CrossEntropyLoss (fallback).")
 
-    # Optimizer
+    # Optimizer over trainable params only (handles staged unfreezing)
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=LEARNING_RATE, 
@@ -688,11 +735,11 @@ def train(rank,
     else:
         scheduler = None
 
-    # Early stopping
+    # Early stopping wrapper (inactive unless USE_EARLY_STOPPING=True)
     early_stopper = EarlyStopping(patience=patience, mode=early_stop_mode)
     
     for epoch in range(EPOCHS):
-        train_sampler.set_epoch(epoch)
+        train_sampler.set_epoch(epoch)  # shuffle shard deterministically per epoch
         total_train_loss = 0.0
         epoch_start_time = time.time()
 
@@ -701,26 +748,28 @@ def train(rank,
         current_lr = optimizer.param_groups[0]['lr']
         log_message(f"[Rank {rank}] Current Learning Rate: {current_lr:.8f}")
 
-        # Unfreeze logic for visual backbone
+        # Unfreeze logic for visual backbone (if initially frozen)
         if epoch == unfreeze_after_vis and FREEZE_BACKBONE_VIS:
             log_message(f"[Rank {rank}] Unfreezing last {fine_tune_layers_vis} layers of MobileNetV3 for fine-tuning")
             for param in list(model.module.visual_cnn.backbone.features.parameters())[-fine_tune_layers_vis:]:
                 param.requires_grad = True
         
-        # Unfreeze logic for text backbone
+        # Unfreeze logic for text backbone (if initially frozen)
         if epoch == unfreeze_after_text and FREEZE_BACKBONE_TEXT:
             log_message(f"[Rank {rank}] Unfreezing last {fine_tune_layers_text} layers of BERT-MINI for fine-tuning")
             for param in list(model.module.text_bert.bert.encoder.layer.parameters())[-fine_tune_layers_text:]:
                 param.requires_grad = True
 
-            # Re-initialize optimizer if newly unfrozen
+            # Re-initialize optimizer so newly unfrozen params get learning updates
             optimizer = optim.AdamW(
                 filter(lambda p: p.requires_grad, model.parameters()), 
                 lr=LEARNING_RATE, 
                 weight_decay=WEIGHT_DECAY
             )
         
+        # -----------------
         # Training loop
+        # -----------------
         model.train()
         for batch_idx, (images, input_ids, attention_mask, labels_batch) in enumerate(train_loader):
             batch_start_time = time.time()
@@ -736,13 +785,13 @@ def train(rank,
             loss.backward()
             optimizer.step()
 
+            # OneCycle schedules step per iteration
             if USE_SCHEDULER and SCHEDULER_TYPE == "onecycle":
                 scheduler.step()
                 current_lr = scheduler.get_last_lr()[0]
                 log_message(
                     f"[Rank {rank}] Epoch {epoch+1}, Batch {batch_idx+1}/{len(train_loader)} - LR: {current_lr:.8f}"
                 )
-
 
             total_train_loss += loss.item()
 
@@ -757,7 +806,9 @@ def train(rank,
         log_message(f"[Rank {rank}] Epoch {epoch+1} Completed - "
                     f"Avg Training Loss: {avg_train_loss:.4f}, Epoch Time: {epoch_time:.2f}s")
 
-        # Validation 
+        # -----------------
+        # Validation (rank 0 only): metrics + qualitative saves + checkpoints + early stopping
+        # -----------------
         if rank == 0:
             avg_test_loss_list = evaluate_model(
                 model.module,
@@ -773,10 +824,10 @@ def train(rank,
             )
             log_message("All evaluations complete.")
 
-            # Early stopping
+            # Choose monitored metric based on mode
             monitored_loss = avg_test_loss_list[1] if early_stop_mode == "val_loss" else avg_train_loss
 
-            # Save model checkpoint
+            # Save model checkpoint (full module and state_dict)
             checkpoint_path = os.path.join(OUT_DIR, f"comb_detector_epoch_{epoch+1}.pth")
             torch.save(model.module, checkpoint_path)
             torch.save(model.module.state_dict(), checkpoint_path + ".sd")
@@ -789,6 +840,7 @@ def train(rank,
 
             model.train()
 
+        # Epoch-wise scheduler steps for cosine/step variants
         if USE_SCHEDULER and SCHEDULER_TYPE in ["cosine", "step"]:
             scheduler.step()
             log_message(f"[Rank {rank}] Scheduler stepped. New LR: {scheduler.get_last_lr()}")
@@ -796,16 +848,18 @@ def train(rank,
     if rank == 0:
         log_message("Training Complete.")
 
+    # Cleanly tear down the DDP process group
     dist.destroy_process_group()
 
 # ============================
 # ===== MAIN EXECUTION  ======
 # ============================
 if __name__ == "__main__":
+    # Optional evaluation-only flow using a saved model
     if USE_PT_MODEL and PT_MODEL_PATH:
         run_inference_only()
         sys.exit(0) 
     
     # ----- normal DDP training -----
-    world_size = torch.cuda.device_count()
+    world_size = torch.cuda.device_count()  # Spawns one process per visible GPU
     mp.spawn(train, args=(world_size, ), nprocs=world_size, join=True)
