@@ -1,1 +1,6 @@
 .DS_Store
+pp3d_data/l1o*
+pp3d_data/raw*
+pp3d_data/test*
+pp3d_data/train*
+pp3d_nginx_conf
