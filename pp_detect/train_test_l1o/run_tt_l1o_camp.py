@@ -1,14 +1,19 @@
 """
-Description
+RQ3: Can PP_det identify web pages belonging to never-before-seen BMA campaigns?
 
-Multimodal (image + text) classifier training and evaluation pipeline using PyTorch.
-This script orchestrates multi-GPU Distributed Data Parallel (DDP) training for a
-fusion model (MobileNetV3-Small for vision + BERT-mini for text), supports
-weighted cross-entropy or focal loss for imbalance, optional schedulers, staged
-unfreezing, and per-epoch evaluation. It iterates over multiple leave-one-out
-cycles on disk (RQ3 layout), saving metrics, ROC curves, sample confusions, and
-per-epoch checkpoints. Only comments and this description were added; the code
-logic remains unchanged.
+This script addresses Research Question 3 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
+by implementing a leave-one-out evaluation methodology to test the model's ability to generalize to completely unseen BMA campaigns.
+
+The script orchestrates multi-GPU Distributed Data Parallel (DDP) training for a multimodal fusion model (MobileNetV3-Small for vision + 
+BERT-mini for text) across multiple leave-one-out cycles. In each cycle, one BMA campaign is held out from training and used exclusively 
+for testing, ensuring that the model has never seen any examples from that campaign during training. This rigorous evaluation tests 
+whether PP_det can identify web pages belonging to never-before-seen BMA campaigns based on learned patterns from other campaigns.
+
+The script can be run with pretrained models for evaluation by setting USE_PT_MODEL=True and providing PT_MODEL_PATHS, or can be run 
+from scratch by setting USE_PT_MODEL=False. It supports weighted cross-entropy or focal loss for class imbalance, optional schedulers, 
+staged unfreezing, and per-epoch evaluation. The pipeline iterates over multiple leave-one-out cycles on disk (RQ3 layout), saving 
+metrics, ROC curves, sample confusions, and per-epoch checkpoints for each cycle. This evaluation demonstrates the model's ability 
+to generalize across diverse BMA campaign types and visual/textual patterns without having seen specific campaign examples during training.
 """
 
 import torch

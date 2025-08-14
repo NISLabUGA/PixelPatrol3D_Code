@@ -1,7 +1,21 @@
 """
-Description
+RQ2: Can PP_det accurately identify instances of BMAs captured on a new screen size never seen during training?
 
-End-to-end PyTorch training + evaluation pipeline for a multimodal classifier that fuses visual (MobileNetV3) and text (BERT-mini) features. The script supports multi-GPU Distributed Data Parallel training, optional fine-tuning and staged unfreezing, focal/weighted CE loss for class imbalance, and per-epoch validation with rich metrics (accuracy, precision, recall, F1, ROC/AUC, DR@1%FPR). It iterates over multiple leave-one-out style cycles on disk, saves artifacts (checkpoints, ROC plots, confusion folders), and logs progress. No model code or logic is altered—only comments are added here for clarity.
+This script addresses Research Question 2 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
+by implementing a leave-one-out evaluation methodology to test the model's ability to generalize to completely unseen screen resolutions.
+
+The script provides an end-to-end PyTorch training and evaluation pipeline for a multimodal classifier that fuses visual (MobileNetV3) 
+and text (BERT-mini) features. In each leave-one-out cycle, one screen resolution is held out from training and used exclusively for 
+testing, ensuring that the model has never seen any examples rendered at that specific resolution during training. This rigorous 
+evaluation tests whether PP_det can accurately identify BMA instances captured on new screen sizes never seen during training, 
+demonstrating the model's resolution-agnostic capabilities.
+
+The script can be run with pretrained models for evaluation by setting USE_PT_MODEL=True and providing PT_MODEL_PATHS, or can be run 
+from scratch by setting USE_PT_MODEL=False. It supports multi-GPU Distributed Data Parallel training, optional fine-tuning and staged 
+unfreezing, focal/weighted CE loss for class imbalance, and per-epoch validation with rich metrics (accuracy, precision, recall, F1, 
+ROC/AUC, DR@1%FPR). The pipeline iterates over multiple leave-one-out style cycles on disk, saves artifacts (checkpoints, ROC plots, 
+confusion folders), and logs progress. This evaluation demonstrates the model's ability to maintain high detection performance across 
+diverse screen resolutions and device form factors without requiring resolution-specific training.
 """
 
 import torch

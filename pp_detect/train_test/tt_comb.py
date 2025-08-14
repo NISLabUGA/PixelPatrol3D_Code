@@ -1,9 +1,20 @@
-""" Description
-This script trains and evaluates a multimodal binary classifier for security-event (SE) vs. benign samples using Distributed Data Parallel (DDP). 
-Images are processed with a MobileNetV3-Small backbone and paired text is encoded with a BERT-mini model; their features are concatenated and 
-fed to a small MLP for classification. The pipeline includes configurable losses (weighted cross-entropy or focal), optional schedulers, 
-early-stopping logic (disabled by default), checkpointing each epoch, and comprehensive evaluation on multiple validation sets with metrics, 
-ROC/AUC, a detection-rate-at-1%-FPR readout, and saving example TP/FP/FN/TN cases (image + matched text) for qualitative analysis.
+""" 
+RQ1 & RQ4: Can PP_det accurately identify new instances of BMAs and fresh BMA attacks?
+
+This script addresses Research Questions 1 and 4 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
+by training and evaluating a multimodal binary classifier for behavior-manipulation attacks (BMAs) vs. benign samples using Distributed Data Parallel (DDP).
+
+RQ1 evaluates whether PP_det can accurately identify new instances of BMAs belonging to previously observed campaigns, while RQ4 tests 
+the model's ability to detect fresh BMA attacks that were collected well after the training data (temporal generalization). Images are 
+processed with a MobileNetV3-Small backbone and paired text is encoded with a BERT-mini model; their features are concatenated and fed 
+to a small MLP for classification.
+
+The script can be run with a pretrained model for evaluation by setting USE_PT_MODEL=True and providing PT_MODEL_PATH, or can be run 
+from scratch by setting USE_PT_MODEL=False. The pipeline includes configurable losses (weighted cross-entropy or focal), optional 
+schedulers, early-stopping logic (disabled by default), checkpointing each epoch, and comprehensive evaluation on multiple validation 
+sets with metrics, ROC/AUC, a detection-rate-at-1%-FPR readout, and saving example TP/FP/FN/TN cases (image + matched text) for 
+qualitative analysis. This evaluation demonstrates the model's ability to generalize to new attack instances and maintain performance 
+over time against evolving BMA campaigns.
 """
 
 import torch

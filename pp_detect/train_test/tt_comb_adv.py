@@ -1,10 +1,19 @@
-""" Description
-This script trains and evaluates a multimodal binary classifier (SE vs. benign) under adversarial settings using Distributed Data Parallel (DDP).
-Images are encoded with MobileNetV3-Small and text with BERT-mini; features are concatenated and classified via a small MLP. Training can mix
-normal SE images with adversarial SE images at five PGD L-infinity strengths; batch construction assigns each sample an adversarial level and
-generates per-level attacks on-the-fly with Foolbox. Evaluation tests across multiple epsilons, saving metrics (accuracy/precision/recall/F1),
-ROC/AUC, detection rate at 1% FPR, and example TN/FP/FN/TP artifacts. The script supports weighted cross-entropy or focal loss, optional LR
-schedulers, checkpointing each epoch, and a reproducible config log.
+""" 
+RQ5: Can PP_det be strengthened against adversarial examples?
+
+This script addresses Research Question 5 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
+by training and evaluating a multimodal binary classifier (BMA vs. benign) under adversarial settings using Distributed Data Parallel (DDP).
+
+The script implements adversarial training to strengthen the PP_det model against adversarial examples that attackers might craft to evade 
+detection. Images are encoded with MobileNetV3-Small and text with BERT-mini; features are concatenated and classified via a small MLP. 
+Training can mix normal BMA images with adversarial BMA images at five PGD L-infinity strengths; batch construction assigns each sample an 
+adversarial level and generates per-level attacks on-the-fly with Foolbox. Evaluation tests across multiple epsilons, saving metrics 
+(accuracy/precision/recall/F1), ROC/AUC, detection rate at 1% FPR, and example TN/FP/FN/TP artifacts.
+
+The script can be run with a pretrained model for evaluation by setting USE_PT_MODEL=True and providing PT_MODEL_PATH, or can be run 
+from scratch by setting USE_PT_MODEL=False. It supports weighted cross-entropy or focal loss, optional LR schedulers, checkpointing 
+each epoch, and generates a reproducible config log. This evaluation demonstrates the model's robustness against coordinated multimodal 
+adversarial attacks on both visual and textual components.
 """
 
 import torch
