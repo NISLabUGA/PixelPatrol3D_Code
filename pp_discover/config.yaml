@@ -4,8 +4,7 @@ crawl_type: SE
 url_list_csv_path: ./data/common_crawl/out/sampled_urls_10000.csv
 # If set to 'all' entire url_list_csv_path will be crawled
 url_crawl_max_num: all
-# crawler_dir_list: ['./pp_crawler_baseline', './pp_crawler']
-crawler_dir_list: ["./pp_crawler_baseline"]
+crawler_dir_list: ["./pp_crawler"]
 # # Destop List
 # user_agent_list: ['chrome_linux', 'chrome_mac', 'chrome_win', 'edge_win', 'firefox_win', 'safari_mac']
 # Mobile List
