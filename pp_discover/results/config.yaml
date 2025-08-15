@@ -1,29 +1,125 @@
+# PixelPatrol3D Results Processing Configuration
+# ==============================================
+# This configuration file defines all parameters and directory paths for the
+# results processing pipeline. It uses environment variable expansion to allow
+# flexible deployment across different systems.
+#
+# Environment Variables Required:
+# - PP_RESULTS_WD: Base working directory for all processing results
+#
+# Directory Structure Created:
+# ${PP_RESULTS_WD}/
+# ├── cons_raw_img/           # Consolidated raw images
+# ├── cons_raw_json/          # Consolidated JSON metadata
+# ├── cons_dedup/             # Deduplicated images
+# ├── meta_clusters/          # Image clusters by similarity
+# ├── final/                  # Final analysis results
+# └── runs/                   # Archived results from previous runs
+
+# General Configuration
+# ---------------------
+# Core settings that apply across all processing modules
 general:
-  crawler_dir_names: ['pp_crawler_baseline', 'pp_crawler']
+  # List of crawler directory names to process
+  # These correspond to different crawler configurations
+  crawler_dir_names: ["pp_crawler"]
+
+  # Base working directory for all processing results
+  # Uses environment variable PP_RESULTS_WD for flexibility
   working_dir: ${PP_RESULTS_WD}
-  log_base_dir: '../'
+
+  # Base directory containing crawler log files
+  # Relative path from the results directory
+  log_base_dir: "./"
+
+  # Maximum number of parallel workers for processing
+  # Adjust based on system capabilities and available CPU cores
   max_workers: 44
+
+# Image Consolidation Configuration
+# ---------------------------------
+# Settings for consolidating screenshots from nested log directories
 cons_imgs:
-  dest_base_dir: '${PP_RESULTS_WD}/cons_raw_img'
+  # Destination directory for consolidated raw images
+  dest_base_dir: "${PP_RESULTS_WD}/cons_raw_img"
+
+# JSON Consolidation Configuration
+# --------------------------------
+# Settings for consolidating metadata JSON files
 cons_json:
-  dest_base_dir: '${PP_RESULTS_WD}/cons_raw_json'
+  # Destination directory for consolidated JSON mapping files
+  dest_base_dir: "${PP_RESULTS_WD}/cons_raw_json"
+
+# Image Deduplication Configuration
+# ---------------------------------
+# Settings for removing duplicate images based on MD5 hash and URL
 dedup_imgs:
-  source_base_dir: '${PP_RESULTS_WD}/cons_raw_img'
-  dest_base_dir: '${PP_RESULTS_WD}/cons_dedup'
-  json_base_dir: '${PP_RESULTS_WD}/cons_raw_json'
-  metadata_base_dir: '${PP_RESULTS_WD}'
+  # Source directory containing consolidated raw images
+  source_base_dir: "${PP_RESULTS_WD}/cons_raw_img"
+
+  # Destination directory for deduplicated images
+  dest_base_dir: "${PP_RESULTS_WD}/cons_dedup"
+
+  # Directory containing consolidated JSON metadata
+  json_base_dir: "${PP_RESULTS_WD}/cons_raw_json"
+
+  # Directory for storing image metadata files
+  metadata_base_dir: "${PP_RESULTS_WD}"
+
+# Perceptual Hash Calculation Configuration
+# -----------------------------------------
+# Settings for calculating perceptual hashes for similarity analysis
 calc_phash:
+  # Hash size for perceptual hash calculation
+  # Larger values provide more precision but require more computation
+  # 128 provides good balance between accuracy and performance
   hash_size: 128
+
+# Image Clustering Configuration
+# ------------------------------
+# Settings for DBSCAN clustering of images based on perceptual hash similarity
 clustering:
-  dest_base_dir: '${PP_RESULTS_WD}/meta_clusters'
-  dist_met: 'euclidean'
+  # Destination directory for clustered images
+  dest_base_dir: "${PP_RESULTS_WD}/meta_clusters"
+
+  # Distance metric for clustering algorithm
+  # 'euclidean' works well for binary perceptual hash vectors
+  dist_met: "euclidean"
+
+  # Distance threshold for clustering
+  # Lower values create tighter clusters, higher values merge more images
+  # 77.5 provides good separation for 128-bit perceptual hashes
   dist_thold: 77.5
+
+  # Minimum number of samples required to form a cluster
+  # Helps filter out noise and ensures clusters have meaningful size
   min_samples: 2
+
+# Social Engineering Analysis Configuration
+# -----------------------------------------
+# Settings for identifying potential social engineering clusters
 tally_se:
-  dest_base_dir: '${PP_RESULTS_WD}/final'
+  # Destination directory for social engineering analysis results
+  dest_base_dir: "${PP_RESULTS_WD}/final"
+
+# Meta-Cluster Gathering Configuration
+# ------------------------------------
+# Settings for collecting clusters of interest for manual review
 gather_mc:
-  dest_base_dir: '${PP_RESULTS_WD}/final'
+  # Destination directory for meta-clusters of interest
+  dest_base_dir: "${PP_RESULTS_WD}/final"
+
+# Click Counting Configuration
+# ----------------------------
+# Settings for analyzing user interaction statistics
 count_clicks:
-  dest_base_dir: '${PP_RESULTS_WD}/final'
+  # Destination directory for click analysis results
+  dest_base_dir: "${PP_RESULTS_WD}/final"
+
+# Cleanup and Archival Configuration
+# ----------------------------------
+# Settings for archiving results and preparing for next processing run
 clean:
-  dest_dir: './runs'
+  # Directory for storing archived results from previous runs
+  # Uses relative path to create versioned archives (r1, r2, r3, etc.)
+  dest_dir: "./runs"
