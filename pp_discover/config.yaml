@@ -1,7 +1,7 @@
 # Main crawler config
 timeout: 300
 crawl_type: SE
-url_list_csv_path: ./data/common_crawl/out/sampled_urls_10000.csv
+url_list_csv_path: ./test_url_crawl_list.csv
 # If set to 'all' entire url_list_csv_path will be crawled
 url_crawl_max_num: all
 crawler_dir_list: ["./pp_crawler"]
@@ -25,8 +25,9 @@ user_agent_list:
     "safari_ipad",
     "chrome_android_tab",
   ]
-max_containers: 24
+max_containers: 10
 base_port: 59000
 log_path: ./progress_log.csv
 auto_clean: True
-conts_to_clean: ["pp_redis_server", "pp_api_cont"]
+# Can add beginning part of container names as list of strings to have them auto removed after runs
+conts_to_clean: []

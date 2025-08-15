@@ -47,7 +47,7 @@ const chrome_dir = "/home/user/chrome_user";
 // var home_dir = "./pp_crawler_baseline/";
 
 // For docker use
-var home_dir = "/mnt/pp_pkg/pp_crawler_baseline/";
+var home_dir = "../";
 
 var MAIN_LOGS_DIR =
   home_dir +

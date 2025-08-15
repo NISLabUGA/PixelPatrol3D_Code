@@ -85,8 +85,8 @@ def run_docker_command(url, crawler, user_agent, index, total, timeout=config['t
     container_id = None
     try:
         cmd = f"""
-            docker run --rm -d \
-                -v /mnt/lts/nis_lab_research/pp_pkg:/mnt/pp_pkg \
+            docker run -d \
+                -v ./:/mnt/pp_pkg \
                 -p {port}:5901 \
                 --network pp_nw \
                 sking115422/pp_crawler_single_cont:v1 \

@@ -29,8 +29,6 @@ def clean_all():
         os.remove(file_path)
         
     commands = [
-        ("python clean.py", "./pp_mod_inf_api", "Python clean script in pp_mod_inf_api"),
-        ("node clean.js", "./pp_crawler_baseline", "Node.js clean script in pp_crawler_baseline"),
         ("node clean.js", "./pp_crawler", "Node.js clean script in pp_crawler"),
     ]
     

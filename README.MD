@@ -1,0 +1,1 @@
+use requirements.txt to create virutual env for python related code in pp_detect and pp_discover

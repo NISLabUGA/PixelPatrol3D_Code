@@ -49,39 +49,24 @@ def clean_docker_containers(substrings):
 
 def main():
     # List of commands to execute
-    commands = []
-    if './pp_crawler' in config["crawler_dir_list"]:
-        commands = [
-            ("python clean_all.py", "Clean up all directories"),
-            (
-                "docker run -d "
-                "--name pp_redis_server "
-                "--hostname pp_redis_server "
-                "--network pp_nw "
-                "redis redis-server --port 63790",
-                "Setup Redis Server"
-            ),
-            ("cd ./pp_mod_inf_api && python ./run_all.py", "Create Inference Containers"),
-            ("python run_single.py", "Run crawler management script"),
-        ]
-    else:
-        commands = [
-            ("python clean_all.py", "Clean up all directories"),
-            ("python run_single.py", "Run crawler management script"),
-        ]
+    commands = [
+        ("python clean_all.py", "Clean up all directories"),
+        ("python run_single.py", "Run crawler management script"),
+    ]
 
     for command, description in commands:
         execute_command(command, description)
-        print("Sleeping for 20 seconds...")
-        time.sleep(20)
+        # print("Sleeping for 3 seconds...")
+        time.sleep(1)
         
     if config['auto_clean']:
         
         # List of substrings to match container names
         substrings_to_clean = config['conts_to_clean']
 
-        print("Cleaning up Docker containers with specified substrings...")
-        clean_docker_containers(substrings_to_clean)
+        if substrings_to_clean:
+            print("Cleaning up Docker containers with specified substrings...")
+            clean_docker_containers(substrings_to_clean)
 
 
 if __name__ == "__main__":
