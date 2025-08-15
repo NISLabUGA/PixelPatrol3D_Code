@@ -12,6 +12,7 @@ GitPython==3.1.45
 hf-xet==1.1.7
 huggingface-hub==0.34.4
 idna==3.10
+ImageHash==4.3.2
 Jinja2==3.1.4
 joblib==1.5.1
 kiwisolver==1.4.9
@@ -40,6 +41,7 @@ pillow==11.0.0
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pytz==2025.2
+PyWavelets==1.9.0
 PyYAML==6.0.2
 regex==2025.7.34
 requests==2.32.4
