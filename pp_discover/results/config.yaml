@@ -26,6 +26,9 @@ general:
 
   # Base working directory for all processing results
   # Uses environment variable PP_RESULTS_WD for flexibility
+  # Recommended to set: 
+  # export PP_RESULTS_WD="./wd"
+  # in .bashrc or similar
   working_dir: ${PP_RESULTS_WD}
 
   # Base directory containing crawler log files
