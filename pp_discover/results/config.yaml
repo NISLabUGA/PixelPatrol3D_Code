@@ -30,7 +30,7 @@ general:
 
   # Base directory containing crawler log files
   # Relative path from the results directory
-  log_base_dir: "./"
+  log_base_dir: "../"
 
   # Maximum number of parallel workers for processing
   # Adjust based on system capabilities and available CPU cores
