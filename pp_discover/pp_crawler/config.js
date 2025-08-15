@@ -68,18 +68,10 @@ const max_num_scroll = 25;
 const min_scroll_percent = 0.05;
 const max_scroll_percent = 0.45;
 
-// if (process.env.SE_CRAWLER_ENV =='DOCKER'){
-
-//   MAIN_LOGS_DIR="../logs/"+starting_date_unix+"_"+version_number+"_siteID:"+id
-//   // MAIN_LOGS_DIR="../"+starting_date_unix+"_site"+id
-//   home_dir= "/home/pptruser/"
-// }
-
 var tab_loc_landing = "landing";
 var tab_loc_newTAB = "new_tab";
 var tab_loc_same = "same_tab";
 
-// const SCREENSHOT_DIR=MAIN_LOGS_DIR+"/screenshots_"+starting_date_unix+"/"
 const SCREENSHOT_DIR = MAIN_LOGS_DIR + "/screenshots/";
 const HTML_LOGS_DIR = MAIN_LOGS_DIR + "/html_logs/";
 const DOWNLOADS_DIR = MAIN_LOGS_DIR + "/downloads/";
@@ -87,7 +79,6 @@ const DOWNLOADS_DIR = MAIN_LOGS_DIR + "/downloads/";
 const LOGS_DIR = MAIN_LOGS_DIR + "/logs/";
 const RES_REQ_PAIRS_DIR = MAIN_LOGS_DIR + "/req_res_pairs/";
 const CHROME_LOGS_DIR = MAIN_LOGS_DIR + "/chrome_logs/";
-// const TCPDUMP_DIR =MAIN_LOGS_DIR+"/tcpdump/"
 const ELEMENTS_COOR_DIR = MAIN_LOGS_DIR + "/element_coor/";
 const NET_LOG_DIR = MAIN_LOGS_DIR + "/net_log/";
 const JSON_LOGS = MAIN_LOGS_DIR + "/JSON_log/";
@@ -130,13 +121,6 @@ if (!fs.existsSync(NET_LOG_DIR)) {
 if (!fs.existsSync(JSON_LOGS)) {
   fs.mkdirSync(JSON_LOGS);
 }
-// if (!fs.existsSync(TCPDUMP_DIR)){
-//   fs.mkdirSync(TCPDUMP_DIR);
-// }
-
-// config.log.info("firt records")
-// config.log.debug(`I'm a debug line`);
-// config.log.error(`I'm an error line`);
 
 const opts = {
   // logFilePath:LOGS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.log',
@@ -145,25 +129,22 @@ const opts = {
 };
 
 const opts_download = {
-  // logFilePath:DOWNLOADS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.log',
   logFilePath: DOWNLOADS_DIR + starting_date_unix + "_" + id + ".log",
   timestampFormat: "YYYY-MM-DD HH:mm:ss.SSS",
 };
 
 const opts_req_res = {
-  // logFilePath:DOWNLOADS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.log',
   logFilePath: RES_REQ_PAIRS_DIR + starting_date_unix + "_" + id + ".log",
   timestampFormat: "YYYY-MM-DD HH:mm:ss.SSS",
 };
 
 const opts_chrome_log = {
-  // logFilePath:DOWNLOADS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.log',
+
   logFilePath: CHROME_LOGS_DIR + starting_date_unix + "_" + id + ".log",
   timestampFormat: "YYYY-MM-DD HH:mm:ss.SSS",
 };
 
 const opts_coor = {
-  // logFilePath:DOWNLOADS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.log',
   logFilePath: ELEMENTS_COOR_DIR + starting_date_unix + "_" + id + ".log",
   timestampFormat: "YYYY-MM-DD HH:mm:ss.SSS",
 };
@@ -190,16 +171,6 @@ const log_download = SimpleNodeLogger.createSimpleLogger(opts_download);
 var logger_rr = SimpleNodeLogger.createSimpleFileLogger(opts_req_res);
 var logger_chrm = SimpleNodeLogger.createSimpleFileLogger(opts_chrome_log);
 var logger_coor = SimpleNodeLogger.createSimpleFileLogger(opts_coor);
-// var req_res_file=RES_REQ_PAIRS_DIR+starting_date+"_"+utils.toISOLocal(new Date())+'.txt'
-// var req_res_file=RES_REQ_PAIRS_DIR+starting_date+"_"+id+'.txt'
-// var logger_rr = fs.createWriteStream(req_res_file, {
-//   flags: 'a' // 'a' means appending (old data will be preserved)
-// })
-
-// var chrome_log_file=CHROME_LOGS_DIR+starting_date+"_"+id+'.txt'
-// var logger_chrm = fs.createWriteStream(chrome_log_file, {
-//   flags: 'a' // 'a' means appending (old data will be preserved)
-// })
 
 const keywords = [
   "not a robot",
@@ -550,8 +521,6 @@ module.exports.SCREENSHOT_DIR = SCREENSHOT_DIR;
 module.exports.HTML_LOGS_DIR = HTML_LOGS_DIR;
 module.exports.DOWNLOADS_DIR = DOWNLOADS_DIR;
 module.exports.LOGS_DIR = LOGS_DIR;
-// module.exports.RES_REQ_PAIRS_DIR =RES_REQ_PAIRS_DIR
-// module.exports.TCPDUMP_DIR =TCPDUMP_DIR
 module.exports.USER_AGENTS = USER_AGENTS;
 module.exports.starting_date_unix = starting_date_unix;
 module.exports.log_dir_name = log_dir_name;
