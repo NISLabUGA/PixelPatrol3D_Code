@@ -1,3 +1,11 @@
+"""
+This is the main crawler orchestration script that manages parallel web crawling operations using Docker containers. 
+It loads URLs from a CSV file, creates combinations of URLs with different crawlers and user agents, then launches 
+multiple Docker containers concurrently (up to a configurable limit) to crawl websites. It includes port management, 
+timeout handling, progress logging, and thread-safe container lifecycle management to efficiently process large-scale 
+web crawling tasks.
+"""
+
 import os
 import random
 import subprocess

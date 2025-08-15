@@ -1,3 +1,9 @@
+"""
+This is a cleanup utility script that prepares the environment for fresh crawling operations. It removes old 
+progress log files and executes a Node.js cleanup script in the pp_crawler directory to clear out previous 
+crawling artifacts, ensuring a clean state before starting new crawling sessions.
+"""
+
 import subprocess
 import os
 import yaml

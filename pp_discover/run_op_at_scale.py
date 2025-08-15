@@ -1,3 +1,10 @@
+"""
+This is a high-level orchestration script that automates the complete crawling pipeline. It sequentially executes 
+cleanup operations (via clean_all.py) followed by the main crawling process (via run_single.py), and optionally 
+performs Docker container cleanup afterward. It serves as the entry point for running large-scale crawling 
+operations with automated setup and teardown.
+"""
+
 import subprocess
 import time
 import yaml

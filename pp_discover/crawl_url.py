@@ -1,3 +1,10 @@
+"""
+This is a command-line utility script that crawls a single URL using a specified crawler configuration. It takes 
+parameters for the crawler directory, target URL, user agent, and log folder, then generates a unique hash for 
+the URL and executes a Node.js screenshot capture script with the appropriate parameters. It's designed to be 
+called by other scripts or used standalone for individual URL crawling tasks.
+"""
+
 import sys
 import pandas as pd
 import hashlib

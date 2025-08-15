@@ -1,10 +1,10 @@
 # Main crawler config
-timeout: 300
-crawl_type: SE
-url_list_csv_path: ./test_url_crawl_list.csv
+timeout: 300 # Maximum time in seconds to wait for each crawling operation to complete
+crawl_type: SE # Type of crawling operation (SE = Screenshot Extraction)
+url_list_csv_path: ./test_url_crawl_list.csv # Path to CSV file containing URLs to crawl
 # If set to 'all' entire url_list_csv_path will be crawled
-url_crawl_max_num: all
-crawler_dir_list: ["./pp_crawler"]
+url_crawl_max_num: all # Maximum number of URLs to crawl from the list ('all' for entire list)
+crawler_dir_list: ["./pp_crawler"] # List of crawler directories to use for crawling operations
 # # Destop List
 # user_agent_list: ['chrome_linux', 'chrome_mac', 'chrome_win', 'edge_win', 'firefox_win', 'safari_mac']
 # Mobile List
@@ -12,7 +12,7 @@ crawler_dir_list: ["./pp_crawler"]
 # # Tablet List
 # user_agent_list: ['safari_ipad', 'chrome_android_tab']
 # # All user agents
-user_agent_list:
+user_agent_list: # List of user agents to simulate different browsers/devices during crawling. Corresponds to the values in pp_crawler/config.js.
   [
     "chrome_linux",
     "chrome_mac",
@@ -25,9 +25,9 @@ user_agent_list:
     "safari_ipad",
     "chrome_android_tab",
   ]
-max_containers: 10
-base_port: 59000
-log_path: ./progress_log.csv
-auto_clean: False
+max_containers: 10 # Maximum number of Docker containers to run concurrently
+base_port: 59000 # Starting port number for Docker container port allocation
+log_path: ./progress_log.csv # Path to file where crawling progress will be logged
+auto_clean: False # Whether to automatically clean up Docker containers after crawling
 # Can add beginning part of container names as list of strings to have them auto removed after runs
-conts_to_clean: []
+conts_to_clean: [] # List of container name prefixes to automatically remove during cleanup
