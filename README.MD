@@ -27,7 +27,7 @@ PP3D consists of three main components:
 │   PP_Discover   │───▶│   PP_Detect     │───▶│   PP_Defend     │
 │                 │    │                 │    │                 │
 │ • Web Crawling  │    │ • Multimodal    │    │ • Browser       │
-│ • Data Mining   │    │   Classification │    │   Extension     │
+│ • Data Mining   │    │   Classification│    │   Extension     │
 │ • Campaign      │    │ • Visual + Text │    │ • Real-time     │
 │   Discovery     │    │   Features      │    │   Protection    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
@@ -52,6 +52,7 @@ PP3D consists of three main components:
   - See [PP_Detect README](pp_detect/README.md) for training instructions
 
 - **[`pp_defend/`](pp_defend/)** - Browser extension for real-time protection
+
   - Chrome/Firefox extension with ONNX Web Runtime
   - Local inference with Tesseract.js OCR
   - User-friendly warning interface
