@@ -33,6 +33,16 @@ PP3D consists of three main components:
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
+## 🌿 Branch Structure
+
+This repository contains multiple branches with different code configurations:
+
+- **`chrome`** - **Main branch** containing the complete PixelPatrol3D codebase with all three components (pp_discover, pp_detect, pp_defend)
+- **`firefox`** - Contains only the pp_defend code specifically adapted for Firefox browser extension
+- **`firefox_mobile`** - Contains only the pp_defend code specifically adapted for Firefox mobile browser extension
+
+For the full system implementation and research code, use the **chrome branch**. The firefox branches contain browser-specific variants of the defense component only.
+
 ## 📁 Repository Structure
 
 ### Core Modules
