@@ -18,10 +18,9 @@ pp_detect/
 │   └── m33_ep4.pth             # Pre-trained PP_det model
 ├── train_test/                  # Main training and evaluation scripts
 │   ├── tt_comb.py              # RQ1 & RQ4: New instances and fresh attacks
-│   └── tt_comb_adv.py          # RQ5: Adversarial robustness evaluation
-├── train_test_l1o/             # Leave-one-out evaluation scripts
-│   ├── run_tt_l1o_camp.py      # RQ3: Never-before-seen BMA campaigns
-│   └── run_tt_l1o_res.py       # RQ2: New screen resolutions
+│   ├── tt_comb_adv.py          # RQ5: Adversarial robustness evaluation
+│   ├── tt_l1o_camp.py          # RQ3: Never-before-seen BMA campaigns
+│   └── tt_l1o_res.py           # RQ2: New screen resolutions
 └── utils/                       # Utility scripts and notebooks
     ├── pyt_2_onnx.ipynb        # PyTorch to ONNX conversion
     └── tok_2_json.ipynb        # Tokenizer to JSON conversion
@@ -48,14 +47,14 @@ This module addresses five key research questions from the PP3D paper:
 
 ### RQ2: Screen Resolution Generalization
 
-**Script:** `train_test_l1o/run_tt_l1o_res.py`
+**Script:** `train_test/tt_l1o_res.py`
 
 - **Question:** Can PP_det accurately identify instances of BMAs captured on a new screen size never seen during training?
 - **Methodology:** Leave-one-out evaluation where each screen resolution is held out for testing
 
 ### RQ3: Unseen Campaign Detection
 
-**Script:** `train_test_l1o/run_tt_l1o_camp.py`
+**Script:** `train_test/tt_l1o_camp.py`
 
 - **Question:** Can PP_det identify web pages belonging to never-before-seen BMA campaigns?
 - **Methodology:** Leave-one-out evaluation where each BMA campaign is held out for testing
@@ -104,15 +103,15 @@ python tt_comb_adv.py
 #### 3. Leave-One-Out Campaign Evaluation (RQ3)
 
 ```bash
-cd train_test_l1o/
-python run_tt_l1o_camp.py
+cd train_test/
+python tt_l1o_camp.py
 ```
 
 #### 4. Leave-One-Out Resolution Evaluation (RQ2)
 
 ```bash
-cd train_test_l1o/
-python run_tt_l1o_res.py
+cd train_test/
+python tt_l1o_res.py
 ```
 
 ### Using Pre-trained Models

@@ -1,21 +1,19 @@
 """
-RQ2: Can PP_det accurately identify instances of BMAs captured on a new screen size never seen during training?
+RQ3: Can PP_det identify web pages belonging to never-before-seen BMA campaigns?
 
-This script addresses Research Question 2 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
-by implementing a leave-one-out evaluation methodology to test the model's ability to generalize to completely unseen screen resolutions.
+This script addresses Research Question 3 from "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" 
+by implementing a leave-one-out evaluation methodology to test the model's ability to generalize to completely unseen BMA campaigns.
 
-The script provides an end-to-end PyTorch training and evaluation pipeline for a multimodal classifier that fuses visual (MobileNetV3) 
-and text (BERT-mini) features. In each leave-one-out cycle, one screen resolution is held out from training and used exclusively for 
-testing, ensuring that the model has never seen any examples rendered at that specific resolution during training. This rigorous 
-evaluation tests whether PP_det can accurately identify BMA instances captured on new screen sizes never seen during training, 
-demonstrating the model's resolution-agnostic capabilities.
+The script orchestrates multi-GPU Distributed Data Parallel (DDP) training for a multimodal fusion model (MobileNetV3-Small for vision + 
+BERT-mini for text) across multiple leave-one-out cycles. In each cycle, one BMA campaign is held out from training and used exclusively 
+for testing, ensuring that the model has never seen any examples from that campaign during training. This rigorous evaluation tests 
+whether PP_det can identify web pages belonging to never-before-seen BMA campaigns based on learned patterns from other campaigns.
 
 The script can be run with pretrained models for evaluation by setting USE_PT_MODEL=True and providing PT_MODEL_PATHS, or can be run 
-from scratch by setting USE_PT_MODEL=False. It supports multi-GPU Distributed Data Parallel training, optional fine-tuning and staged 
-unfreezing, focal/weighted CE loss for class imbalance, and per-epoch validation with rich metrics (accuracy, precision, recall, F1, 
-ROC/AUC, DR@1%FPR). The pipeline iterates over multiple leave-one-out style cycles on disk, saves artifacts (checkpoints, ROC plots, 
-confusion folders), and logs progress. This evaluation demonstrates the model's ability to maintain high detection performance across 
-diverse screen resolutions and device form factors without requiring resolution-specific training.
+from scratch by setting USE_PT_MODEL=False. It supports weighted cross-entropy or focal loss for class imbalance, optional schedulers, 
+staged unfreezing, and per-epoch evaluation. The pipeline iterates over multiple leave-one-out cycles on disk (RQ3 layout), saving 
+metrics, ROC curves, sample confusions, and per-epoch checkpoints for each cycle. This evaluation demonstrates the model's ability 
+to generalize across diverse BMA campaign types and visual/textual patterns without having seen specific campaign examples during training.
 """
 
 import torch
@@ -43,99 +41,100 @@ from datetime import datetime
 import shutil
 import random
 
-# Configure default rendezvous for torch.distributed (single-node, localhost RDV)
+# Distributed rendezvous configuration (single-node localhost)
 os.environ["MASTER_ADDR"] = "localhost"
 os.environ["MASTER_PORT"] = "29500"
 
 # =========================
 # ===== CONFIGURATION =====
 # =========================
-# Image handling
-TARGET_IMG_SIZE = (1920, 1080)   # logical canvas used for padding before transforms
-IMG_SCALE_FACTOR = 0.5           # scale down target canvas for compute efficiency
+# Image preprocessing / canvas settings
+TARGET_IMG_SIZE = (1920, 1080)   # target canvas before padding
+IMG_SCALE_FACTOR = 0.5           # global scale factor applied after safe fit
 
-# Training hyperparameters
+# Optimization setup
 BATCH_SIZE = 64
 EPOCHS = 10
-MAX_BENIGN_TEST_SAMPLES = 500    # cap benign test samples per eval to control runtime
+MAX_BENIGN_TEST_SAMPLES = 500    # cap benign samples in eval for speed
 SEED = 123
 
-USE_EARLY_STOPPING = False       # global toggle for early stopping in main loop
+USE_EARLY_STOPPING = False       # toggle early stopping in training loop
 # LEARNING_RATE = 5e-5
-LEARNING_RATE = 2e-6             # conservative LR (text+vision often needs small LR)
-USE_SCHEDULER = False            # set True to enable LR schedulers below
-SCHEDULER_TYPE = "onecycle"      # "cosine", "onecycle", or "step"
+LEARNING_RATE = 2e-6             # small LR typically safer for multimodal fusion
+USE_SCHEDULER = False # Set to False to disable scheduler
+SCHEDULER_TYPE = "onecycle"  # Options: "cosine", "onecycle", "step"
 WEIGHT_DECAY = 5e-4
 
-# Dropout rates for different submodules
+# Dropout across submodules
 DROPOUT_VIS = 0.3
 DROPOUT_TXT = 0.3
-DROPOUT_FL = 0.6                  # fusion head dropout
+DROPOUT_FL = 0.6
 
 # Text tokenization
 MAX_TOKEN_LENGTH = 512
 
-# Backbone freezing / staged unfreezing knobs
+# Backbone freezing / staged unfreezing controls
 FREEZE_BACKBONE_VIS = False
-FINE_TUNE_LAYERS_VIS = 8          # how many final layers to unfreeze when scheduled
-UNFREEZE_AFTER_VIS = 0            # epoch index to begin unfreezing visual layers
+FINE_TUNE_LAYERS_VIS = 8
+UNFREEZE_AFTER_VIS = 0
 
 FREEZE_BACKBONE_TEXT = False
-FINE_TUNE_LAYERS_TEXT = 3         # how many final Transformer blocks to unfreeze
-UNFREEZE_AFTER_TEXT = 0           # epoch index to begin unfreezing text layers
+FINE_TUNE_LAYERS_TEXT = 3
+UNFREEZE_AFTER_TEXT = 0
 
-# Device / tokenizer / workers
+# Device / tokenizer / dataloader workers
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 TOKENIZER = AutoTokenizer.from_pretrained("prajjwal1/bert-mini")
-NUM_WORKERS = 20                  # dataloader workers (tune per filesystem/CPU)
+NUM_WORKERS = 20
 
-# Optional: evaluate pre-trained checkpoints instead of training
+# Optional: evaluate pretrained models instead of training
 USE_PT_MODEL = False
 PT_MODEL_PATHS = [
-    '/path/to/out_l1o_res/1.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/2.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/3.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/4.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/5.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/6.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/7.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/8.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/9.mclus_excluded/model.pth',
-    '/path/to/out_l1o_res/10.mclus_excluded/model.pth'
+    '/path/to/out_l1o_camp/1.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/2.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/3.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/4.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/5.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/6.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/7.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/8.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/9.mclus_excluded/model.pth',
+    '/path/to/out_l1o_camp/10.mclus_excluded/model.pth'
 ]
 
-# Dataset roots and multi-cycle orchestration
-ROOT_DIR = "../../pp3d_data/l1o/rq2/l1o_res/"   # cycles live here (1.mclus_excluded, ...)
+# Dataset roots for RQ3 cycles and output
+ROOT_DIR = "../../pp3d_data/l1o/rq3/l1o_camp/"
 BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
-OUT_BASE = "./out_l1o_res"                        # per-cycle output root
-WORLD_SIZE = torch.cuda.device_count()             # DDP world size = number of GPUs
+OUT_BASE = "./out/l1o_camp"   # base output directory for all cycles
+WORLD_SIZE = torch.cuda.device_count()  # number of GPUs / processes
 
-# Collect cycle directories in sorted order for deterministic iteration
+# collect and sort cycle folders (1.mclus_excluded, 2.mclus_excluded, …)
 cycle_dirs = sorted([
     os.path.join(ROOT_DIR, d)
     for d in os.listdir(ROOT_DIR)
     if os.path.isdir(os.path.join(ROOT_DIR, d))
 ])
 
-# Control what misclassified examples get saved out as images+texts
+# What to persist as confusion samples during evaluation
 SHOW_FP = True
 SHOW_FN = True
 SHOW_TP = False
 SHOW_TN = False
 
-# Loss selection: standard CE, class-weighted CE, or Focal Loss
+# Options: "ce", "weighted_ce", or "focal"
 LOSS_TYPE = "weighted_ce"
 
-# Focal Loss hyperparameters (if enabled)
+# Default for Focal Loss
 # ALPHA = 0.25
 # GAMMA = 2.0
-# Tuned values for stronger down-weighting of easy examples / up-weighting rare class
+
+# Potentially better parameters 
 ALPHA = 0.75
 GAMMA = 3.0
 
 
 def save_config(cycle_out_dir, se_train_dir, benign_train_dir, se_test_dir, benign_test_dir):
-    """Dump the run configuration and paths to a notes.txt file under the cycle directory."""
+    """Write a human-readable snapshot of configuration and paths for a cycle."""
     config_text = f"""
 ======== Experiment Configuration ========
 Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -192,29 +191,11 @@ USE_EARLY_STOPPING: {USE_EARLY_STOPPING}
     with open(notes_path, "w") as f:
         f.write(config_text.strip())
 
-# ----------  Resolution helpers  ----------
-# Extract trailing WxH token from filename stems (e.g., "..._1920x1080") for filtering
-
-def extract_resolution_from_filename(fname: str) -> str | None:
-    stem = os.path.splitext(os.path.basename(fname))[0]
-    res_part = stem.rsplit("_", 1)[-1]
-    return res_part if "x" in res_part else None
-
-
-# Enumerate subdirectories inside SE test directory as known resolutions to exclude in benign
-
-def get_resolutions_from_se_test(se_test_dir: str) -> set[str]:
-    return {
-        d for d in os.listdir(se_test_dir)
-        if os.path.isdir(os.path.join(se_test_dir, d))
-    }
-
-
 # ==========================
 # ===== EARLY STOPPING =====
 # ==========================
 class EarlyStopping:
-    """Simple early stopping on a monitored loss with patience and min_delta."""
+    """Minimal early stopping that monitors a scalar loss and stops after patience."""
     def __init__(self, patience=1, min_delta=0.001, mode="val_loss"):
         assert mode in ["val_loss", "train_loss"], "Invalid mode! Choose 'val_loss' or 'train_loss'."
         self.patience = patience
@@ -249,7 +230,7 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, inputs, targets):
-        # Per-sample CE; then reweight by (1-pt)^gamma and alpha
+        # Standard cross-entropy per sample
         ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-ce_loss)  # Probability of correctly classified sample
         focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
@@ -265,25 +246,8 @@ class FocalLoss(nn.Module):
 # ===== DATASET CLASS =====
 # =========================
 class SEDataset(Dataset):
-    """Custom dataset that pairs images with adjacent .txt files and labels.
-
-    - se_dir: root with malicious image+text pairs (label=1)
-    - benign_dir: root with benign image+text pairs (label=0)
-    - exclude_resolutions: drop benign samples whose filename suffix matches SE test resolutions
-    - include_metadata: when True, returns PIL image and source text path for visualization/copying
-    - max_benign_samples: optional random downsample for benign class (reproducible via seed)
-    """
-    def __init__(
-        self, 
-        se_dir, 
-        benign_dir, 
-        transform=None, 
-        include_metadata=False, 
-        max_benign_samples: int = None, 
-        seed: int = None,
-        exclude_resolutions: set[str] | None = None
-    ):
-
+    """Pairs images with adjacent .txt files and assigns labels by root dir."""
+    def __init__(self, se_dir, benign_dir, transform=None, include_metadata=False, max_benign_samples: int = None, seed: int = None):
         self.image_paths = []
         self.text_data = []
         self.labels = []
@@ -293,29 +257,17 @@ class SEDataset(Dataset):
 
         # collect SE and benign pairs
         se_pairs, ben_pairs = [], []
-
-        # ---------- SE ----------
-        for dirpath, _, filenames in os.walk(se_dir):
-            for fn in filenames:
-                if fn.lower().endswith((".png", ".jpg", ".jpeg")):
-                    img_p = os.path.join(dirpath, fn)
-                    txt_p = os.path.splitext(img_p)[0] + ".txt"
-                    if os.path.isfile(txt_p):
-                        se_pairs.append((img_p, txt_p, 1))
-
-        # ---------- BENIGN ----------
-        for dirpath, _, filenames in os.walk(benign_dir):
-            for fn in filenames:
-                if fn.lower().endswith((".png", ".jpg", ".jpeg")):
-                    # --- NEW FILTER ---
-                    res = extract_resolution_from_filename(fn)
-                    if exclude_resolutions and res in exclude_resolutions:
-                        continue          # skip this benign pair
-                    # --------------------------------------------
-                    img_p = os.path.join(dirpath, fn)
-                    txt_p = os.path.splitext(img_p)[0] + ".txt"
-                    if os.path.isfile(txt_p):
-                        ben_pairs.append((img_p, txt_p, 0))
+        for img_dir, label, collector in [
+            (se_dir, 1, se_pairs),
+            (benign_dir, 0, ben_pairs)
+        ]:
+            for dirpath, _, filenames in os.walk(img_dir):
+                for fn in filenames:
+                    if fn.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        img_path = os.path.join(dirpath, fn)
+                        txt_path = os.path.splitext(img_path)[0] + ".txt"
+                        if os.path.isfile(txt_path):
+                            collector.append((img_path, txt_path, label))
 
         # subsample benign if over limit
         if max_benign_samples is not None and len(ben_pairs) > max_benign_samples:
@@ -334,7 +286,6 @@ class SEDataset(Dataset):
         return len(self.image_paths)
     
     def __getitem__(self, idx):
-        # Load paired data
         img_path = self.image_paths[idx]
         txt_path = os.path.splitext(img_path)[0] + ".txt"
         label = self.labels[idx]
@@ -342,7 +293,7 @@ class SEDataset(Dataset):
         
         image = Image.open(img_path).convert("RGB")
         
-        # Two-stage resizing: safe downscale to fit target, then global downscale for compute
+        # Two-stage resizing: safe fit in TARGET_IMG_SIZE, then global downscale for compute
         orig_width, orig_height = image.size
         target_width, target_height = self.target_size
 
@@ -374,7 +325,6 @@ class SEDataset(Dataset):
         else:
             image_tensor = transforms.ToTensor()(padded_image)
         
-        # Tokenize paired text
         tokens = TOKENIZER(
             text, 
             padding='max_length', 
@@ -404,7 +354,7 @@ class SEDataset(Dataset):
 # ===========================
 # ===== TRANSFORMATIONS =====
 # ===========================
-# Simple tensor+normalize; images were already padded/centered above
+# Normalize to [-1, 1] range assuming 0.5 mean/std per channel
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -414,7 +364,7 @@ transform = transforms.Compose([
 # ===== MODEL CLASSES ===
 # =======================
 class VisualCNN(nn.Module):
-    """Visual backbone using torchvision MobileNetV3-Small with optional freezing."""
+    """MobileNetV3-Small backbone for vision; classifier head removed, optional freeze."""
     def __init__(self, freeze_backbone=FREEZE_BACKBONE_VIS, 
                  fine_tune_layers=FINE_TUNE_LAYERS_VIS, 
                  dropout_rate=DROPOUT_VIS):
@@ -433,7 +383,7 @@ class VisualCNN(nn.Module):
         return self.dropout(features)
 
 class TextBERT(nn.Module):
-    """Text backbone using HuggingFace BERT-mini; outputs a 128-dim projection."""
+    """BERT-mini backbone with 128-dim projection; optional freezing/Dropout."""
     def __init__(self, model_name="prajjwal1/bert-mini", 
                  freeze_backbone=FREEZE_BACKBONE_TEXT, 
                  fine_tune_layers=FINE_TUNE_LAYERS_TEXT, 
@@ -454,7 +404,7 @@ class TextBERT(nn.Module):
         return self.fc(self.dropout(output.pooler_output))
 
 class SEClassifier(nn.Module):
-    """Fusion head that concatenates visual and text features, then classifies."""
+    """Concatenate vision+text features then classify via a small MLP head."""
     def __init__(self, 
                  visual_feat_dim=576, 
                  text_feat_dim=128, 
@@ -484,7 +434,7 @@ class SEClassifier(nn.Module):
 # ===== MODEL EVALUATION    ========================
 # ==================================================
 
-# Collate that preserves PIL images and source text paths for visualization
+# Collate that preserves PILs+paths for confusion visualization
 
 def custom_collate(batch):
     pil_images = [item[0] for item in batch]
@@ -500,12 +450,7 @@ def evaluate_model(model, se_dirs, benign_dirs,
                    transform, device, epoch,
                    batch_size, num_workers,
                    results_base_dir, criterion):
-    """Evaluate a trained model on provided SE/benign directories and emit metrics/artifacts.
-
-    - Saves confusion buckets (tn/fp/fn/tp) with image+text samples based on SHOW_* toggles
-    - Writes metrics to eval_metrics.txt and plots ROC curve
-    - Returns list of average test losses (one per provided eval set)
-    """
+    """Run evaluation over provided SE/benign dirs and save metrics/artifacts per epoch."""
 
     model.eval()
 
@@ -555,7 +500,6 @@ def evaluate_model(model, se_dirs, benign_dirs,
                 all_labels.extend(labels.cpu().numpy().tolist())
                 all_probs.extend(probs.cpu().numpy().tolist())
 
-                # Save visual confusion examples based on configured toggles
                 for i, pil_img in enumerate(pil_images):
                     pred_label = preds[i].item()
                     true_label = labels[i].item()
@@ -670,21 +614,19 @@ def train(rank,
           se_test_dir,
           benign_test_dir,
           cycle_out_dir,
-          exclude_resolutions,
           pt_model_path=None,
           patience=2,
           early_stop_mode="val_loss",
           unfreeze_after_vis=UNFREEZE_AFTER_VIS,
           fine_tune_layers_vis=FINE_TUNE_LAYERS_VIS,
           unfreeze_after_text=UNFREEZE_AFTER_TEXT,
-          fine_tune_layers_text=FINE_TUNE_LAYERS_TEXT
-          ):
+          fine_tune_layers_text=FINE_TUNE_LAYERS_TEXT):
     
-    # Initialize the process group for distributed training
+    # Initialize the process group for distributed training (NCCL backend for GPUs)
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
-    # Only rank 0 sets up output dirs and logging
+    # Rank 0 handles logging setup and config dump
     if rank == 0:
         os.makedirs(cycle_out_dir, exist_ok=True)
         save_config(cycle_out_dir, se_train_dir, benign_train_dir, se_test_dir, benign_test_dir)
@@ -704,14 +646,8 @@ def train(rank,
             print(message)  # Print to console
             logging.info(message)  # Save to log file
 
-    # Create datasets
-    train_dataset = SEDataset(se_train_dir, benign_train_dir, transform=transform, exclude_resolutions=exclude_resolutions)
-
-    if rank == 0:
-        num_benign = sum(1 for l in train_dataset.labels if l == 0)
-        num_se     = sum(1 for l in train_dataset.labels if l == 1)
-        log_message(f"[Rank {rank}] Benign examples after resolution exclusion: {num_benign}")
-        log_message(f"[Rank {rank}] Malicious examples: {num_se}")
+    # Create datasets (training only; eval handled in evaluate_model)
+    train_dataset = SEDataset(se_train_dir, benign_train_dir, transform=transform)
 
     # Compute class weights for Weighted CE (we'll only use them if LOSS_TYPE == "weighted_ce")
     labels = train_dataset.labels
@@ -723,7 +659,7 @@ def train(rank,
     )
     class_weights = torch.tensor(class_weights_np, dtype=torch.float).to(rank)
     
-    # Create samplers/loaders
+    # Create samplers/loaders for DDP
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         train_dataset, 
         num_replicas=world_size, 
@@ -738,7 +674,7 @@ def train(rank,
         pin_memory=True
     )
     
-    # Initialize model
+    # Initialize model and wrap with DDP
     model = SEClassifier(
         freeze_backbone_vis=FREEZE_BACKBONE_VIS, 
         freeze_backbone_text=FREEZE_BACKBONE_TEXT
@@ -810,7 +746,7 @@ def train(rank,
         return
   
 
-    # Early stopping
+    # Early stopping helper
     early_stopper = EarlyStopping(patience=patience, mode=early_stop_mode)
     
     for epoch in range(EPOCHS):
@@ -879,7 +815,7 @@ def train(rank,
         log_message(f"[Rank {rank}] Epoch {epoch+1} Completed - "
                     f"Avg Training Loss: {avg_train_loss:.4f}, Epoch Time: {epoch_time:.2f}s")
 
-        # Validation 
+        # Validation (only on rank 0)
         if rank == 0:
             avg_test_loss_list = evaluate_model(
                 model.module,
@@ -924,16 +860,16 @@ def train(rank,
 # ===== MAIN EXECUTION  ======
 # ============================
 if __name__ == "__main__":
-    # Iterate over all cycles (e.g., 1.mclus_excluded,...), spawning a DDP job per cycle
+    # Iterate over all cycles under ROOT_DIR and spawn a DDP job per cycle
     for idx, cycle_path in enumerate(cycle_dirs):
         cycle_name = os.path.basename(cycle_path)
         # derive train/test subfolders:
-        se_train = os.path.join(cycle_path, "training",   "malicious_text_aug")
-        ben_train = BENIGN_TRAIN
-        se_test = os.path.join(cycle_path, "testing",    "malicious")
-        ex_resolutions = get_resolutions_from_se_test(se_test)
+        se_train   = os.path.join(cycle_path, "training",   "malicious_text_aug")
+        ben_train  = BENIGN_TRAIN
+        se_test    = os.path.join(cycle_path, "testing",    "malicious")
+        # ben_test   =     "/mnt/nis_lab_research/ext_class/senet_data/fin_main_tt/benign_1/test_500"
         ben_test = os.path.join(cycle_path, "testing",    "benign")
-        cycle_out_dir = os.path.join(OUT_BASE, cycle_name)
+        cycle_out_dir  = os.path.join(OUT_BASE, cycle_name)
 
         # spawn one DDP run per cycle
         pt_path = PT_MODEL_PATHS[idx] if USE_PT_MODEL and idx < len(PT_MODEL_PATHS) else None
@@ -945,7 +881,6 @@ if __name__ == "__main__":
                   se_test,
                   ben_test,
                   cycle_out_dir,
-                  ex_resolutions,
                   pt_path),
             nprocs=WORLD_SIZE,
             join=True
