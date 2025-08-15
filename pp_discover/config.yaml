@@ -28,6 +28,6 @@ user_agent_list:
 max_containers: 10
 base_port: 59000
 log_path: ./progress_log.csv
-auto_clean: True
+auto_clean: False
 # Can add beginning part of container names as list of strings to have them auto removed after runs
 conts_to_clean: []

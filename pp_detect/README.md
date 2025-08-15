@@ -27,6 +27,14 @@ pp_detect/
     └── tok_2_json.ipynb        # Tokenizer to JSON conversion
 ```
 
+## Login to Hugging Face
+
+Create a Huggingface account on huggingface.co. The from your command line run:
+
+`hf auth login`
+
+Then generate an access token on Huggingface and enter to login. This will allow you to access the Bert-Mini Tokenizer.
+
 ## 🔬 Research Questions and Experiments
 
 This module addresses five key research questions from the PP3D paper:
