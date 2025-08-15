@@ -55,10 +55,17 @@ Raw Crawler Data → Consolidated Data → Deduplicated Data → Clustered Data 
 
 1. **Environment Setup**
 
+   The pipeline requires the `PP_RESULTS_WD` environment variable to be set for flexible deployment across different systems. This variable defines the base working directory for all processing results.
+
    ```bash
-   # Set the working directory environment variable
-   export PP_RESULTS_WD="/path/to/your/results/directory"
+   # Base working directory for all processing results
+   # Uses environment variable PP_RESULTS_WD for flexibility
+   # Recommended to set:
+   export PP_RESULTS_WD="./wd"
+   # in .bashrc or similar for persistence across sessions
    ```
+
+   **Important**: Add this export command to your shell configuration file (`.bashrc`, `.zshrc`, or similar) to ensure the variable persists across terminal sessions.
 
 2. **Python Dependencies**
 
