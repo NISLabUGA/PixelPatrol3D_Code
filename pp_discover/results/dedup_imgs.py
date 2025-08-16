@@ -33,6 +33,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 import yaml
+import threading
 
 # Load configuration from YAML file with environment variable expansion
 with open('./config.yaml', 'r') as file:
@@ -88,7 +89,7 @@ def load_map(json_path):
         print(f"Error loading JSON mapping file {json_path}: {e}")
         return {}
 
-def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata):
+def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata, lock):
     """
     Process a single image for deduplication.
     
@@ -102,6 +103,7 @@ def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata):
         unique_combinations (set): Set of unique (hash, URL) combinations
         dest_dir (str): Destination directory for unique images
         metadata (dict): Dictionary to store metadata for unique images
+        lock (threading.Lock): Thread lock for synchronizing access to shared data
     """
     # Calculate MD5 hash for the image
     md5_hash = calculate_md5(img_path)
@@ -118,19 +120,28 @@ def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata):
         # Create unique key combining hash and URL
         unique_key = (md5_hash, image_url)
         
-        if unique_key not in unique_combinations:
-            # This is a unique hash-URL combination
-            unique_combinations.add(unique_key)
+        # Use lock to ensure thread-safe access to shared data structures
+        with lock:
+            if unique_key not in unique_combinations:
+                # This is a unique hash-URL combination
+                unique_combinations.add(unique_key)
+                
+                # Store metadata for this unique image
+                metadata[img_name] = {
+                    "md5_hash": md5_hash,
+                    "image_url": image_url
+                }
+                
+                # Copy file outside the lock to minimize lock time
+                should_copy = True
+                print(f"Kept unique image: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...)")
+            else:
+                should_copy = False
+                print(f"Duplicate found: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...) - skipping")
+        
+        # Copy file outside the lock to avoid blocking other threads
+        if should_copy:
             shutil.copy(img_path, dest_dir)
-            
-            # Store metadata for this unique image
-            metadata[img_name] = {
-                "md5_hash": md5_hash,
-                "image_url": image_url
-            }
-            print(f"Kept unique image: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...)")
-        else:
-            print(f"Duplicate found: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...) - skipping")
             
     except KeyError:
         print(f"No URL metadata found for {img_name} - skipping")
@@ -170,6 +181,7 @@ def deduplicate_images(source_dir):
     # Initialize deduplication tracking
     unique_combinations = set()  # Track unique (hash, URL) pairs
     metadata = {}  # Store metadata for unique images
+    lock = threading.Lock()  # Thread lock for synchronizing access to shared data
 
     # Collect all image files in the source directory
     if not os.path.exists(source_dir_pth):
@@ -189,7 +201,7 @@ def deduplicate_images(source_dir):
     print("Processing images for deduplication...")
     with ThreadPoolExecutor(max_workers=config['general']['max_workers']) as executor:
         futures = [
-            executor.submit(process_image, img_path, map_obj, unique_combinations, dest_dir, metadata)
+            executor.submit(process_image, img_path, map_obj, unique_combinations, dest_dir, metadata, lock)
             for img_path in img_files
         ]
         
