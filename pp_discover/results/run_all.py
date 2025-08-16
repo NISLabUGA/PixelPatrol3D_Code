@@ -96,7 +96,7 @@ def print_pipeline_summary(start_time, end_time):
     print(f"Directories processed: {len(config['general']['crawler_dir_names'])}")
     print("=" * 80)
     print("Pipeline completed successfully!")
-    print("Results are ready for analysis and model training.")
+    print("Results are ready for analysis.")
     print("=" * 80)
 
 if __name__ == "__main__":
