@@ -205,6 +205,17 @@ Our evaluation addresses five key research questions:
 - Fake Lotteries/Sweepstakes (194 samples, 6 campaigns)
 - Technical Support Scams (17 samples, 3 campaigns)
 
+## 🌐 Live Demonstrations
+
+**Experience PP_Defend in Action**: Visit [https://pixelpatrol3d.github.io/](https://pixelpatrol3d.github.io/) to see real-user perspective demonstrations of PixelPatrol3D's browser-based defense capabilities.
+
+This interactive showcase presents two key scenarios:
+
+- **Scenario 1: Browsing Without Protection** - Highlights how deceptive pages appear when unprotected, demonstrating the subtle nature of Behavior Manipulation Attacks (BMAs) that exploit persuasive visuals and misleading text to manipulate users into unsafe actions.
+- **Scenario 2: Real-Time Protection With Pixel Patrol** - Shows the extension actively detecting and blocking harmful content in real time, providing proactive warnings before any harm occurs.
+
+The demonstrations illustrate how PP_Defend uses privacy-preserving on-device models to scan web content through screenshots and OCR, successfully flagging malicious pages that traditional URL filters cannot detect.
+
 ## 🛡️ Browser Extension Features
 
 ### Real-time Protection
