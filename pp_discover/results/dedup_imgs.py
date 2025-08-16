@@ -34,6 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 import yaml
 import threading
+import re
 
 # Load configuration from YAML file with environment variable expansion
 with open('./config.yaml', 'r') as file:
@@ -110,12 +111,19 @@ def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata, lo
     if md5_hash is None:
         return
 
-    # Extract image filename and look up its URL
-    img_name = os.path.basename(img_path)
+    # Extract image filename and get basename for metadata lookup
+    original_img_name = os.path.basename(img_path)
+    
+    # Extract basename by removing _initial or _scroll suffixes for metadata lookup
+    match = re.match(r"^(.*?)(?:_initial|_scroll).*", original_img_name)
+    if match:
+        basename = match.group(1)
+    else:
+        basename = original_img_name
     
     try:
-        # Get the URL from the consolidated metadata
-        image_url = map_obj[img_name]["url"]
+        # Get the URL from the consolidated metadata using basename
+        image_url = map_obj[basename]["url"]
 
         # Create unique key combining hash and URL
         unique_key = (md5_hash, image_url)
@@ -126,27 +134,28 @@ def process_image(img_path, map_obj, unique_combinations, dest_dir, metadata, lo
                 # This is a unique hash-URL combination
                 unique_combinations.add(unique_key)
                 
-                # Store metadata for this unique image
-                metadata[img_name] = {
+                # Store metadata for this unique image using the ORIGINAL filename as key
+                # This ensures downstream scripts can find metadata using actual image filenames
+                metadata[original_img_name] = {
                     "md5_hash": md5_hash,
                     "image_url": image_url
                 }
                 
                 # Copy file outside the lock to minimize lock time
                 should_copy = True
-                print(f"Kept unique image: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...)")
+                print(f"Kept unique image: {original_img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...)")
             else:
                 should_copy = False
-                print(f"Duplicate found: {img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...) - skipping")
+                print(f"Duplicate found: {original_img_name} (MD5: {md5_hash[:8]}..., URL: {image_url[:50]}...) - skipping")
         
         # Copy file outside the lock to avoid blocking other threads
         if should_copy:
             shutil.copy(img_path, dest_dir)
             
     except KeyError:
-        print(f"No URL metadata found for {img_name} - skipping")
+        print(f"No URL metadata found for basename {basename} - skipping")
     except Exception as e:
-        print(f"Error processing {img_name}: {e}")
+        print(f"Error processing {original_img_name}: {e}")
 
 def deduplicate_images(source_dir):
     """
