@@ -72,7 +72,7 @@ For the full system implementation and research code, use the **chrome branch**.
 
 - **[`pp3d_data/`](pp3d_data/)** - Dataset structure and access information
 
-  - Links to hosted dataset (359GB total)
+  - Links to hosted dataset
   - Organized by research questions (RQ1-RQ5)
   - See [PP3D Data README](pp3d_data/README.md) for download instructions
 
@@ -162,7 +162,7 @@ cd pp_discover/
 cd pp_crawler && npm install && cd ..
 
 # Configure crawling parameters
-vim config.yaml
+nano config.yaml
 
 # Run large-scale crawling
 python run_op_at_scale.py
@@ -252,45 +252,8 @@ The demonstrations illustrate how PP_Defend uses privacy-preserving on-device mo
 ### Access & Usage
 
 - **Public Dataset**: Available at [http://pp3d_data.sdkhomelab.com/](http://pp3d_data.sdkhomelab.com/)
-- **Research License**: Free for academic and research purposes
 - **Organized Structure**: Data organized by research questions for easy access
 - **Verification**: MD5 checksums provided for integrity verification
-
-## 🔧 Advanced Configuration
-
-### Model Training
-
-```python
-# Key hyperparameters in training scripts
-BATCH_SIZE = 64
-LEARNING_RATE = 2e-6
-DROPOUT_VISUAL = 0.3
-DROPOUT_TEXT = 0.3
-DROPOUT_FUSION = 0.6
-LOSS_TYPE = "weighted_ce"  # Options: "ce", "weighted_ce", "focal"
-```
-
-### Browser Extension
-
-```javascript
-// Extension configuration in manifest.json
-"permissions": ["activeTab", "storage", "offscreen"]
-"host_permissions": ["<all_urls>"]
-"web_accessible_resources": ["models/*", "notification.html"]
-```
-
-### Web Crawler
-
-```yaml
-# Crawler configuration in config.yaml
-timeout: 300 # seconds per URL
-max_containers: 10 # concurrent Docker containers
-user_agent_list: # supported browser configurations
-  - chrome_linux
-  - chrome_mac
-  - firefox_win
-  - safari_iphone
-```
 
 ## 🤝 Contributing
 
@@ -365,7 +328,7 @@ This project is released under the MIT License. See [LICENSE](LICENSE) for detai
 
 ### Research Inquiries
 
-- **Academic Collaboration**: Contact the research team
+- **Academic Collaboration**: For research inquiries or collaboration opportunities, please contact our team at _[sdk81722@uga.edu]()_
 - **Dataset Access**: Follow instructions in [pp3d_data README](pp3d_data/README.md)
 - **Paper Questions**: Reference the full paper for methodological details
 

@@ -1,6 +1,6 @@
 # PP3D Dataset Structure
 
-To access the data associated with this project we has hosted the data [here](http://pp3d_data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
+To access the data associated with this project we has hosted the data [here](http://pp3d_data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
 
 ## Research Questions Overview
 
@@ -81,7 +81,7 @@ Contains test datasets for evaluating different aspects of the model:
   - Completely separate from training data
   - Used to evaluate basic detection capabilities on new instances of previously seen campaigns
 
-- **`malicious/test_500/d1/`**: 500 malicious test samples
+- **`malicious/test_500/`**: 500 malicious test samples
 
   - BMA samples from campaigns seen during training but different instances
   - Tests model's ability to generalize to new attack instances within known campaigns
@@ -124,7 +124,7 @@ Contains data for leave-one-out cross-validation experiments:
 
 ## Dataset Download Instructions
 
-The PP3D dataset is publicly available for research purposes. All major directories (`l1o`, `raw`, `test`, and `train`) are provided as compressed `.zip` files for easier download and storage.
+The PP3D dataset is publicly available. All major directories (`l1o`, `raw`, `test`, and `train`) are provided as compressed `.zip` files for easier download and storage.
 
 ### Complete Dataset Download
 
@@ -301,12 +301,3 @@ The malicious dataset covers 6 main BMA attack categories:
 ## Ethical Considerations
 
 Data collection followed established precedents in security research with minimal impact on legitimate advertisers. The crawling system was designed to be respectful of website resources while gathering necessary data for defense research.
-
-## Citation
-
-If you use this dataset in your research, please cite:
-
-```
-PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks
-ACSAC 2025 (Submitted)
-```

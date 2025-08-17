@@ -149,7 +149,7 @@ python run_op_at_scale.py
 
 ### Supported User Agents
 
-The system supports multiple browser configurations:
+Some of the browser configurations are shown below:
 
 **Desktop Browsers:**
 
@@ -218,15 +218,24 @@ Crawling generates organized output:
 
 ```
 pp_crawler/logs/
-├── {site_id}_{timestamp}/
-│   ├── screenshots/
-│   │   ├── {timestamp}_{url_hash}_FIRST_1920x1080.png
-│   │   ├── {timestamp}_{url_hash}_land0_1920x1080.png
-│   │   └── ...
-│   ├── html_files/
-│   │   ├── {timestamp}_{url_hash}_FIRST_1920x1080.html
-│   │   └── ...
-│   └── metadata.json
+├── {browser_device}/
+│   ├── {timestamp}_V{version}_siteID:{site_hash}/
+│   │   ├── chrome_logs/
+│   │   ├── downloads/
+│   │   ├── element_coor/
+│   │   ├── html_logs/
+│   │   ├── JSON_log/
+│   │   ├── logs/
+│   │   ├── net_log/
+│   │   ├── req_res_pairs/
+│   │   ├── screenshots/
+│   │   └── visitedURLs_{timestamp}_{site_hash}.json
+│   ├── {timestamp}_V{version}_siteID:{site_hash}/
+│   └── ...
+├── {browser_device}/
+│   └── ...
+└── ...
+
 ```
 
 ### File Naming Convention
