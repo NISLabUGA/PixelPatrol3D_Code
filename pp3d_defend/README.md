@@ -162,11 +162,11 @@ firefox-developer-edition --new-instance --profile /tmp/ff-test
 ### Getting Help
 
 - **Firefox Extension Documentation**: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions
-- **Main Project Support**: See [main README](../README.md) for general support
+- **Main Project Support**: See [main README](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/README.md) for general support
 - **Firefox-Specific Issues**: Report with "Firefox" label on GitHub
 
 ---
 
 **Note**: This Firefox version maintains full feature parity with the Chrome extension while adapting to Firefox's extension architecture. The core detection model, scanning logic, and user interface remain identical.
 
-For complete technical documentation, architecture details, and usage instructions, refer to the [main PP_Defend README](../pp_defend/README.md).
+For complete technical documentation, architecture details, and usage instructions, refer to the [main PP_Defend README](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/pp_defend/README.md).
