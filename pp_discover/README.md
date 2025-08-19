@@ -274,22 +274,6 @@ This generates:
 
 ## 🔧 Advanced Usage
 
-### Custom Crawling Scripts
-
-#### Single URL Testing
-
-```python
-# crawl_url.py - Test individual URLs
-python crawl_url.py --url "https://example.com" --user-agent chrome_win
-```
-
-#### Batch Processing
-
-```python
-# Process specific URL subsets
-python run_single.py --max-urls 100 --user-agents chrome_win,firefox_win
-```
-
 ### Performance Tuning
 
 #### Container Scaling
@@ -322,17 +306,6 @@ tail -f progress_log.csv
 
 # Check container status
 docker ps -a
-```
-
-#### Log Analysis
-
-```bash
-# View crawler logs
-cd pp_crawler/logs/{site_id}_{timestamp}/
-cat crawler.log
-
-# Check for errors
-grep -i error pp_crawler/logs/*/crawler.log
 ```
 
 ## 🛠️ Development
@@ -381,7 +354,7 @@ def analyze_custom_patterns(image_dir, metadata):
 
 ### Typical Performance
 
-- **Throughput**: 50-200 URLs per hour (depending on complexity)
+- **Throughput**: 100-200 URLs per hour (depending on complexity)
 - **Container Efficiency**: 10-20 concurrent containers optimal
 - **Storage**: ~10-50MB per URL (screenshots + HTML)
 - **Memory**: ~2-4GB per container
@@ -390,7 +363,7 @@ def analyze_custom_patterns(image_dir, metadata):
 
 1. **Adjust timeout** based on target site complexity
 2. **Scale containers** based on available CPU/memory
-3. **Use SSD storage** for better I/O performance
+3. **Use SSD or NVMe storage** for better I/O performance
 4. **Monitor network bandwidth** for large-scale operations
 
 ## 🚨 Important Considerations
@@ -425,20 +398,6 @@ def analyze_custom_patterns(image_dir, metadata):
 3. Test changes with small URL lists
 4. Update documentation
 5. Submit pull request
-
-### Testing
-
-```bash
-# Test crawler functionality
-cd pp_crawler
-npm test
-
-# Test orchestration
-python -m pytest tests/
-
-# Integration testing
-python run_op_at_scale.py --test-mode
-```
 
 ## 📞 Support
 
