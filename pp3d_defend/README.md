@@ -2,7 +2,7 @@
 
 **Real-time browser defense against web behavior manipulation attacks - Firefox Desktop version**
 
-This is the Firefox desktop implementation of the PP_Defend browser extension. For complete project documentation, see the [main PP_Defend README](../pp_defend/README.md) and [PixelPatrol3D project overview](../README.md).
+This is the Firefox desktop implementation of the PP_Defend browser extension. For complete project documentation, see the [main PP_Defend README](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/pp_defend/README.md) and [PixelPatrol3D project overview](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/README.md).
 
 ## 🔄 Key Differences from Chrome Version
 
