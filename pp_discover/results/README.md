@@ -1,6 +1,6 @@
 # PixelPatrol3D Results Processing Pipeline
 
-This directory contains the complete results processing pipeline for the PixelPatrol3D BMA detection system. The pipeline transforms raw crawler data into analyzed datasets suitable for machine learning model training and behavior manipulation attack research.
+This directory contains the complete results processing pipeline for the PixelPatrol3D BMA detection system. The pipeline helps to transform raw crawler data into analyzed datasets suitable for machine learning model training and behavior manipulation attack research.
 
 ## Overview
 
@@ -22,7 +22,7 @@ Raw Crawler Data → Consolidated Data → Deduplicated Data → Clustered Data 
 4. **Perceptual Hash Calculation** - Compute similarity hashes for clustering
 5. **Image Clustering** - Group visually similar images using DBSCAN
 6. **Social Engineering Analysis** - Identify potential BMA clusters
-7. **Interaction Analysis** - Count user interactions for engagement metrics
+7. **Interaction Analysis** - Count crawler interactions for engagement metrics
 8. **Meta-Cluster Gathering** - Collect clusters of interest for review
 9. **Cleanup and Archival** - Archive results and prepare for next run
 
@@ -69,13 +69,12 @@ Raw Crawler Data → Consolidated Data → Deduplicated Data → Clustered Data 
 
 2. **Python Dependencies**
 
-   ```bash
-   pip install pillow imagehash scikit-learn pandas tqdm pyyaml numpy
-   ```
+   Use the `pp3d_env` created earlier with `source pp3d_env/bin/activate` or on Windows with `pp3d_env\Scripts\activate`.
 
 3. **Raw Data**
+
    - Crawler logs must be available in the configured directories
-   - Expected structure: `../pp_crawler/logs/` and `../pp_crawler_baseline/logs/`
+   - Expected structure: `../pp_crawler/logs/`
 
 ### Running the Pipeline
 
@@ -108,7 +107,7 @@ The pipeline is configured through `config.yaml`. Key settings include:
 ```yaml
 general:
   working_dir: ${PP_RESULTS_WD} # Base working directory
-  crawler_dir_names: ["pp_crawler_baseline", "pp_crawler"] # Crawler types
+  crawler_dir_names: ["pp_crawler"] # Crawler types
   max_workers: 44 # Parallel processing threads
 ```
 
@@ -168,7 +167,7 @@ ${PP_RESULTS_WD}/
 
 ### Interaction Analysis
 
-- **tot_num_clicks.txt**: User interaction statistics and engagement metrics
+- **tot_num_clicks.txt**: crawler interaction statistics and engagement metrics
 
 ### Visual Similarity Clusters
 
@@ -242,6 +241,7 @@ ${PP_RESULTS_WD}/
    ```
 
 4. **Missing Dependencies**
+
    ```
    Error: ModuleNotFoundError
    Solution: pip install -r requirements.txt
@@ -274,38 +274,6 @@ python -u consolidate_imgs.py 2>&1 | tee consolidate.log
 - Generate labeled datasets for computer vision research
 - Create benchmarks for BMA detection algorithms
 - Support reproducible security research
-
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@article{pixelpatrol3d2024,
-  title={PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks},
-  author={[Authors]},
-  journal={[Journal]},
-  year={2024}
-}
-```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with appropriate tests
-4. Submit a pull request with detailed description
-
-## Support
-
-For questions, issues, or contributions:
-
-- Open an issue on GitHub
-- Contact the research team
-- Check the documentation wiki
 
 ---
 

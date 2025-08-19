@@ -82,7 +82,8 @@ pp_discover/
 
    ```bash
    # Install Python dependencies
-   pip install -r requirements.txt
+   # Use the pp3d_env created earlier with
+   source pp3d_env/bin/activate # on Windows with pp3d_env\Scripts\activate.
 
    # Set up crawler dependencies
    cd pp_crawler

@@ -42,17 +42,17 @@ node capture_screenshots.js "https://example.com" 1001 30 chrome_win SE
 
 ### Required Parameters
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `URL` | Target website URL to crawl | `"https://example.com"` |
-| `ID` | Unique website identifier for logging | `1001` |
-| `TIMEOUT` | Maximum crawling time in seconds | `30` |
-| `USER_AGENT` | Browser user agent (see options below) | `chrome_win` |
+| Parameter      | Description                            | Example                   |
+| -------------- | -------------------------------------- | ------------------------- |
+| `URL`        | Target website URL to crawl            | `"https://example.com"` |
+| `ID`         | Unique website identifier for logging  | `1001`                  |
+| `TIMEOUT`    | Maximum crawling time in seconds       | `30`                    |
+| `USER_AGENT` | Browser user agent (see options below) | `chrome_win`            |
 
 ### Optional Parameters
 
-| Parameter | Description | Default | Options |
-|-----------|-------------|---------|---------|
+| Parameter         | Description                 | Default  | Options                |
+| ----------------- | --------------------------- | -------- | ---------------------- |
 | `CRAWLING_MODE` | Type of crawling to perform | `"SE"` | `"SE"`, `"benign"` |
 
 ## 🖥️ Supported User Agents
@@ -81,6 +81,7 @@ X_Y_Z_WxH.E
 ```
 
 Where:
+
 - **X**: UNIX timestamp (milliseconds) when screenshot was taken
 - **Y**: MD5 hash of the URL (excluding query parameters after "?")
 - **Z**: Tab location identifier (see below)
@@ -90,21 +91,21 @@ Where:
 
 ### Tab Location Identifiers (Z)
 
-| Identifier | Description |
-|------------|-------------|
-| `FIRST` | Initial landing page |
-| `land*` | Landing page before click * (0-indexed) |
-| `lafter*` | Landing page after click * (HTML changed, URL same) |
-| `lsame*` | Landing page after click * (URL changed) |
-| `new*` | New tab opened by click * |
-| `newBC*` | New tab before click * |
-| `newAC*` | New tab after click * |
-| `newSAME*` | New tab with URL change after click * |
-| `newNEW*` | Second-level new tab opened |
-| `newNEXTBC*` | Second-level new tab before click * |
-| `newNEXTAC*` | Second-level new tab after click * |
-| `newNEXTSAME*` | Second-level new tab with URL change |
-| `newNEWNEXT*` | Third-level new tab opened |
+| Identifier       | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `FIRST`        | Initial landing page                                |
+| `land*`        | Landing page before click * (0-indexed)             |
+| `lafter*`      | Landing page after click * (HTML changed, URL same) |
+| `lsame*`       | Landing page after click * (URL changed)            |
+| `new*`         | New tab opened by click *                           |
+| `newBC*`       | New tab before click *                              |
+| `newAC*`       | New tab after click *                               |
+| `newSAME*`     | New tab with URL change after click *               |
+| `newNEW*`      | Second-level new tab opened                         |
+| `newNEXTBC*`   | Second-level new tab before click *                 |
+| `newNEXTAC*`   | Second-level new tab after click *                  |
+| `newNEXTSAME*` | Second-level new tab with URL change                |
+| `newNEWNEXT*`  | Third-level new tab opened                          |
 
 ### Tab Flow Diagram
 
@@ -124,6 +125,7 @@ Landing Page
 The crawler uses specific Chrome flags for optimal performance and security testing:
 
 #### Performance Flags
+
 - `--hide-scrollbars` - Improves performance
 - `--mute-audio` - Reduces resource usage
 - `--disable-infobars` - Removes info bars
@@ -131,6 +133,7 @@ The crawler uses specific Chrome flags for optimal performance and security test
 - `--shm-size=3gb` - Increases shared memory
 
 #### Security Flags (for SE detection)
+
 - `--disable-web-security` - Reduces security for more examples
 - `--allow-running-insecure-content` - Allows insecure content
 - `--ignore-certificate-errors` - Ignores SSL errors
@@ -138,16 +141,19 @@ The crawler uses specific Chrome flags for optimal performance and security test
 - `--allow-popups-during-page-unload` - Allows unload popups
 
 #### Logging Flags
+
 - `--dns-log-details` - Logs DNS queries
 - `--log-net-log=${netlogfile}` - Saves network logs
 
 #### Container Flags
+
 - `--no-sandbox` - Required for containerized environments
 - `--disable-setuid-sandbox` - Reduces sandbox restrictions
 
 ### Customizing Configuration
 
 Edit `config.js` to modify:
+
 - User agent strings
 - Screen resolutions
 - Timeout values
@@ -162,6 +168,8 @@ Edit `config.js` to modify:
 - **Content**: Top 1 million websites with popularity rankings
 - **Update Frequency**: Daily
 - **Usage**: Website selection for large-scale crawling
+
+**NOTE:** This file should be pulled from [https://tranco-list.eu/](https://tranco-list.eu/) and updated frequently for freshness.
 
 ## 🧹 Cleanup
 
@@ -185,23 +193,17 @@ This script helps manage and clean up crawling artifacts and temporary files.
 ### Dependencies
 
 Key dependencies include:
+
 - `puppeteer` - Browser automation
 - `puppeteer-extra` - Enhanced Puppeteer functionality
 - `puppeteer-extra-plugin-stealth` - Stealth mode
 - `csv-parser` - CSV file processing
 - `simple-node-logger` - Logging functionality
 
-### Scripts
-
-Available npm scripts:
-```bash
-npm start    # Start with nodemon (development)
-npm test     # Run tests (not implemented)
-```
-
 ## 📝 Logging
 
 The crawler generates detailed logs organized by:
+
 - **Site ID**: Unique identifier for each crawl
 - **Timestamp**: When the crawl was performed
 - **Log Level**: Info, warning, error messages
@@ -218,6 +220,7 @@ Log files are stored in directories named: `{SITE_ID}_{TIMESTAMP}`
 ## 🤝 Contributing
 
 When modifying the crawler:
+
 1. Update configuration in `config.js` for new user agents or settings
 2. Add utility functions to `utils.js`
 3. Follow the existing naming conventions for output files
@@ -226,6 +229,7 @@ When modifying the crawler:
 ## 📞 Support
 
 For issues with the crawler:
+
 1. Check browser compatibility and Puppeteer version
 2. Verify Node.js dependencies are properly installed
 3. Review log files for detailed error information

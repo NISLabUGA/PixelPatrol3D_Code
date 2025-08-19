@@ -78,13 +78,14 @@ This module addresses five key research questions from the PP3D paper:
 ### Prerequisites
 
 ```bash
-# Install required packages
-pip install torch torchvision transformers
-pip install scikit-learn matplotlib numpy pillow
-pip install foolbox albumentations opencv-python
+# Install Python dependencies
+# Use the pp3d_env created earlier with
+source pp3d_env/bin/activate # on Windows with pp3d_env\Scripts\activate.
 ```
 
 ### Running Experiments
+
+**NOTE:** Need to have data present with expected structure in the pp3d_data folder. For instructions on this please refer to the [pp3d_data/README.md](../pp3d_data/README.md).
 
 #### 1. Basic Training and Evaluation (RQ1 & RQ4)
 
@@ -248,19 +249,6 @@ All scripts support Distributed Data Parallel (DDP) training:
 - `utils/pyt_2_onnx.ipynb`: Convert PyTorch models to ONNX format for browser deployment
 - `utils/tok_2_json.ipynb`: Convert tokenizer to JSON format for web deployment
 
-## 📝 Citation
-
-If you use this code, please cite:
-
-```bibtex
-@inproceedings{pp3d2025,
-  title={PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks},
-  author={[Authors]},
-  booktitle={Annual Computer Security Applications Conference (ACSAC)},
-  year={2025}
-}
-```
-
 ## 🤝 Contributing
 
 1. Follow the existing code structure and documentation style
@@ -275,3 +263,5 @@ For questions about the PP_det module:
 1. Check the paper for methodological details
 2. Review the script headers for specific research question implementations
 3. Examine the configuration parameters for dataset path requirements
+4. Open GitHub issues for bugs and feature requests
+5. Contact the research team for academic collaboration
