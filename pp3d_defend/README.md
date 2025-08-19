@@ -234,11 +234,11 @@ npm install --global web-ext
 
 - **Mobile Extension Development**: https://extensionworkshop.com/documentation/develop/developing-extensions-for-firefox-for-android/
 - **ADB/Debugging Issues**: Check Android developer documentation
-- **Main Project Support**: See [main README](../README.md) for general support
+- **Main Project Support**: See [main README](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/README.md) for general support
 - **Mobile-Specific Issues**: Report with "Mobile" label on GitHub
 
 ---
 
 **Note**: This mobile version maintains core detection functionality while adapting to mobile constraints and user interaction patterns. The detection model and scanning logic remain identical to desktop versions.
 
-For complete technical documentation, architecture details, and usage instructions, refer to the [main PP_Defend README](../pp_defend/README.md).
+For complete technical documentation, architecture details, and usage instructions, refer to the [main PP_Defend README](https://github.com/NISLabUGA/PixelPatrol3D_Code/blob/chrome/pp_defend/README.md).
