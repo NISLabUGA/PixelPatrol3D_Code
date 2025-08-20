@@ -1,6 +1,6 @@
 # PP3D Dataset Structure
 
-To access the data associated with this project we has hosted the data [here](http://pp3d_data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
+To access the data associated with this project we has hosted the data [here](http://pp3d-data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
 
 ## Research Questions Overview
 
@@ -132,13 +132,13 @@ To download the entire dataset:
 
 ```bash
 # Download all dataset components
-wget -r -np -nH --cut-dirs=4 -R "index.html*" http://pp3d_data.sdkhomelab.com/
+wget -r -np -nH --cut-dirs=4 -R "index.html*" http://pp3d-data.sdkhomelab.com/
 
 # Alternative: Download individual zip files
-wget http://pp3d_data.sdkhomelab.com/raw.zip
-wget http://pp3d_data.sdkhomelab.com/train.zip
-wget http://pp3d_data.sdkhomelab.com/test.zip
-wget http://pp3d_data.sdkhomelab.com/l1o.zip
+wget http://pp3d-data.sdkhomelab.com/raw.zip
+wget http://pp3d-data.sdkhomelab.com/train.zip
+wget http://pp3d-data.sdkhomelab.com/test.zip
+wget http://pp3d-data.sdkhomelab.com/l1o.zip
 ```
 
 ### Selective Download by Research Question
@@ -149,8 +149,8 @@ Download only the data needed for specific research questions:
 
 ```bash
 # Download training and RQ1 test data
-wget http://pp3d_data.sdkhomelab.com/train.zip
-wget http://pp3d_data.sdkhomelab.com/test.zip
+wget http://pp3d-data.sdkhomelab.com/train.zip
+wget http://pp3d-data.sdkhomelab.com/test.zip
 # Extract only RQ1 test data
 unzip -j test.zip "test/rq1/*" -d rq1_test/
 ```
@@ -159,7 +159,7 @@ unzip -j test.zip "test/rq1/*" -d rq1_test/
 
 ```bash
 # Download leave-one-out data for resolution experiments
-wget http://pp3d_data.sdkhomelab.com/l1o.zip
+wget http://pp3d-data.sdkhomelab.com/l1o.zip
 # Extract resolution-specific data
 unzip l1o.zip
 ```
@@ -168,7 +168,7 @@ unzip l1o.zip
 
 ```bash
 # Download leave-one-out data for campaign experiments
-wget http://pp3d_data.sdkhomelab.com/l1o.zip
+wget http://pp3d-data.sdkhomelab.com/l1o.zip
 # Extract campaign-specific data
 unzip l1o.zip
 ```
@@ -177,8 +177,8 @@ unzip l1o.zip
 
 ```bash
 # Download training data and RQ4 test data
-wget http://pp3d_data.sdkhomelab.com/train.zip
-wget http://pp3d_data.sdkhomelab.com/test.zip
+wget http://pp3d-data.sdkhomelab.com/train.zip
+wget http://pp3d-data.sdkhomelab.com/test.zip
 # Extract only RQ4 test data
 unzip -j test.zip "test/rq4/*" -d rq4_test/
 ```
@@ -187,8 +187,8 @@ unzip -j test.zip "test/rq4/*" -d rq4_test/
 
 ```bash
 # Download training data (including adversarial) and RQ5 test data
-wget http://pp3d_data.sdkhomelab.com/train.zip
-wget http://pp3d_data.sdkhomelab.com/test.zip
+wget http://pp3d-data.sdkhomelab.com/train.zip
+wget http://pp3d-data.sdkhomelab.com/test.zip
 # Extract adversarial training and test data
 unzip -j train.zip "train/malicious_adv/*" -d adversarial_train/
 unzip -j test.zip "test/rq5/*" -d rq5_test/
@@ -200,7 +200,7 @@ For researchers interested in the original, unprocessed data:
 
 ```bash
 # Download raw data collection
-wget http://pp3d_data.sdkhomelab.com/raw.zip
+wget http://pp3d-data.sdkhomelab.com/raw.zip
 unzip raw.zip
 
 # Access specific raw data components

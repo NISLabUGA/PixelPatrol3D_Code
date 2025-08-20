@@ -1,7 +1,7 @@
 # PixelPatrol3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks
 
 [![Paper](https://img.shields.io/badge/Paper-ACSAC%202025-blue)](pp3d_acsac_053025.pdf)
-[![Dataset](https://img.shields.io/badge/Dataset-Available-green)](http://pp3d_data.sdkhomelab.com/)
+[![Dataset](https://img.shields.io/badge/Dataset-Available-green)](http://pp3d-data.sdkhomelab.com/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 **PixelPatrol3D (PP3D)** is the first end-to-end browser framework for discovering, detecting, and defending against web-based behavior manipulation attacks (BMAs) in real time. Unlike traditional phishing attacks that steal credentials, BMAs manipulate users into performing unsafe actions like downloading malware, granting unwanted permissions, or calling fraudulent support lines.
@@ -113,11 +113,11 @@ huggingface-cli login
 
 ```bash
 # Download complete dataset (359GB)
-wget -r -np -nH --cut-dirs=4 -R "index.html*" http://pp3d_data.sdkhomelab.com/
+wget -r -np -nH --cut-dirs=4 -R "index.html*" http://pp3d-data.sdkhomelab.com/
 
 # Or download specific components
-wget http://pp3d_data.sdkhomelab.com/train.zip  # Training data (46GB)
-wget http://pp3d_data.sdkhomelab.com/test.zip   # Test data (1GB)
+wget http://pp3d-data.sdkhomelab.com/train.zip  # Training data (46GB)
+wget http://pp3d-data.sdkhomelab.com/test.zip   # Test data (1GB)
 ```
 
 ### 3. Run Detection Model
@@ -251,7 +251,7 @@ The demonstrations illustrate how PP_Defend uses privacy-preserving on-device mo
 
 ### Access & Usage
 
-- **Public Dataset**: Available at [http://pp3d_data.sdkhomelab.com/](http://pp3d_data.sdkhomelab.com/)
+- **Public Dataset**: Available at [http://pp3d-data.sdkhomelab.com/](http://pp3d-data.sdkhomelab.com/)
 - **Organized Structure**: Data organized by research questions for easy access
 - **Verification**: MD5 checksums provided for integrity verification
 
