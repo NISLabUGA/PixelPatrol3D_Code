@@ -106,7 +106,8 @@ PT_MODEL_PATHS = [
 
 # Dataset roots and multi-cycle orchestration
 ROOT_DIR = "../../pp3d_data/l1o/rq2/l1o_res/"   # cycles live here (1.mclus_excluded, ...)
-BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
+# BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
+BENIGN_TRAIN = "" # Can set hard path if desired. Otherwise use default benign sets
 OUT_BASE = "./out/l1o_res"                        # per-cycle output root
 WORLD_SIZE = torch.cuda.device_count()             # DDP world size = number of GPUs
 
@@ -929,7 +930,9 @@ if __name__ == "__main__":
         cycle_name = os.path.basename(cycle_path)
         # derive train/test subfolders:
         se_train = os.path.join(cycle_path, "training",   "malicious_text_aug")
-        ben_train = BENIGN_TRAIN
+        ben_train  = os.path.join(cycle_path, "training",   "benign")
+        if BENIGN_TRAIN:
+            ben_train  = BENIGN_TRAIN
         se_test = os.path.join(cycle_path, "testing",    "malicious")
         ex_resolutions = get_resolutions_from_se_test(se_test)
         ben_test = os.path.join(cycle_path, "testing",    "benign")

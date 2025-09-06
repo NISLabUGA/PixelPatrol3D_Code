@@ -104,7 +104,8 @@ PT_MODEL_PATHS = [
 
 # Dataset roots for RQ3 cycles and output
 ROOT_DIR = "../../pp3d_data/l1o/rq3/l1o_camp/"
-BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
+# BENIGN_TRAIN = "../../pp3d_data/train/benign/train_100k"
+BENIGN_TRAIN = "" # Can set hard path if desired. Otherwise use default benign sets
 OUT_BASE = "./out/l1o_camp"   # base output directory for all cycles
 WORLD_SIZE = torch.cuda.device_count()  # number of GPUs / processes
 
@@ -865,9 +866,10 @@ if __name__ == "__main__":
         cycle_name = os.path.basename(cycle_path)
         # derive train/test subfolders:
         se_train   = os.path.join(cycle_path, "training",   "malicious_text_aug")
-        ben_train  = BENIGN_TRAIN
+        ben_train  = os.path.join(cycle_path, "training",   "benign")
+        if BENIGN_TRAIN:
+            ben_train  = BENIGN_TRAIN
         se_test    = os.path.join(cycle_path, "testing",    "malicious")
-        # ben_test   =     "/mnt/nis_lab_research/ext_class/senet_data/fin_main_tt/benign_1/test_500"
         ben_test = os.path.join(cycle_path, "testing",    "benign")
         cycle_out_dir  = os.path.join(OUT_BASE, cycle_name)
 
