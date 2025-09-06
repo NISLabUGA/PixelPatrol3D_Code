@@ -117,7 +117,13 @@ cd PixelPatrol3D_Code
 python -m venv pp3d_env
 source pp3d_env/bin/activate  # On Windows: pp3d_env\Scripts\activate
 
-# Install Python dependencies
+# Install PyTorch with CUDA support (if available)
+# For CUDA systems:
+pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu124
+# For CPU-only systems:
+# pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
 pip install -r requirements.txt
 
 # Login to Hugging Face (required for BERT tokenizer)
