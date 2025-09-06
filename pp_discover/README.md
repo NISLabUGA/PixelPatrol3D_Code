@@ -30,7 +30,6 @@ PP_Discover Pipeline
 pp_discover/
 ├── README.md                    # This documentation
 ├── config.yaml                  # Main configuration file
-├── requirements.txt             # Python dependencies
 ├── test_url_crawl_list.csv     # Sample URL list for testing
 ├── clean_all.py                # Cleanup script for all directories
 ├── crawl_url.py                # Single URL crawling utility

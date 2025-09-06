@@ -28,11 +28,13 @@ pp_detect/
 
 ## Login to Hugging Face
 
-Create a Huggingface account on huggingface.co. The from your command line run:
+Create a Hugging Face account on [huggingface.co](https://huggingface.co). Then from your command line run:
 
-`hf auth login`
+```bash
+huggingface-cli login
+```
 
-Then generate an access token on Huggingface and enter to login. This will allow you to access the Bert-Mini Tokenizer.
+Then generate an access token on Hugging Face and enter it when prompted. This will allow you to access the BERT-mini tokenizer.
 
 ## 🔬 Research Questions and Experiments
 

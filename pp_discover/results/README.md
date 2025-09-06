@@ -244,7 +244,7 @@ ${PP_RESULTS_WD}/
 
    ```
    Error: ModuleNotFoundError
-   Solution: pip install -r requirements.txt
+   Solution: Ensure pp3d_env is activated and dependencies installed from main requirements.txt
    ```
 
 ### Debug Mode
