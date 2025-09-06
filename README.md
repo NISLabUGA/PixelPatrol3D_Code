@@ -18,6 +18,21 @@ This repository contains the complete implementation of the PP3D framework descr
 - **Privacy Preserving**: All inference runs locally in the browser with no data leakage
 - **Comprehensive Dataset**: Largest labeled BMA dataset with 7,149+ attack samples across 84 campaigns
 
+## 🔬 ACSAC 2025 Artifact Evaluation
+
+For **reproducible evaluation** of our research claims, we provide a comprehensive artifact evaluation package:
+
+**🔗 [ACSAC Artifact Repository](https://github.com/NISLabUGA/PixelPatrol3D_Code_ACSAC_Artifacts)**
+
+This artifact includes:
+
+- **Pre-trained models** for all research questions (RQ1-RQ5)
+- **Evaluation scripts** with expected runtime <10 minutes to 90 minutes per claim
+- **Standardized datasets** with automated download and verification
+- **8 reproducibility claims** covering core evaluation and training verification
+
+The artifact enables independent verification of our key results including **99%+ detection rates** and **cross-resolution/campaign generalization** without requiring full model training from scratch.
+
 ## 🏗️ Architecture
 
 PP3D consists of three main components:
