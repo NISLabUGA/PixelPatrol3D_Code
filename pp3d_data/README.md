@@ -1,6 +1,6 @@
 # PP3D Dataset Structure
 
-To access the data associated with this project we has hosted the data [here](http://pp3d-data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
+To access the data associated with this project we have hosted the data [here](http://pp3d-data.sdkhomelab.com/). This directory contains the datasets used in the PP3D (Pixel Patrol 3D) research paper "PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks" submitted to ACSAC 2025. The datasets are organized to support the various research questions (RQs) investigated in the paper.
 
 ## Research Questions Overview
 
