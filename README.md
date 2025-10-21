@@ -6,6 +6,11 @@
 
 **PixelPatrol3D (PP3D)** is the first end-to-end browser framework for discovering, detecting, and defending against web-based behavior manipulation attacks (BMAs) in real time. Unlike traditional phishing attacks that steal credentials, BMAs manipulate users into performing unsafe actions like downloading malware, granting unwanted permissions, or calling fraudulent support lines.
 
+**📄 Paper Versions:**
+
+- [Camera Ready Pre-Print (October 2025)](pp3d_acsac_cr_102125.pdf)
+- [Original Accepted Version (May 2025)](pp3d_acsac_053025.pdf)
+
 ## 📖 Overview
 
 This repository contains the complete implementation of the PP3D framework described in our ACSAC 2025 paper. The system achieves **99% detection rate at 1% false positives** and maintains **97%+ detection rate** even on attacks collected months after training, demonstrating strong temporal generalization.
