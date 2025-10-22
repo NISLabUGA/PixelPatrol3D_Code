@@ -8,7 +8,7 @@
 
 **📄 Paper Versions:**
 
-- [Camera Ready Pre-Print (October 2025)](pp3d_acsac_cr_102125.pdf)
+- [Camera Ready Pre-Print (October 2025)](pp3d_acsac_cr_102125.pdf) | [arXiv (2510.18465)](https://arxiv.org/pdf/2510.18465)
 - [Original Accepted Version (May 2025)](pp3d_acsac_053025.pdf)
 
 ## 📖 Overview
