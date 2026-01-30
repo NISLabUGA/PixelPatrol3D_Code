@@ -1,7 +1,8 @@
 # PixelPatrol3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks
 
 [![Paper](https://img.shields.io/badge/Paper-ACSAC%202025-blue)](pp3d_acsac_053025.pdf)
-[![Dataset](https://img.shields.io/badge/Dataset-Available-green)](http://pp3d-data.sdkhomelab.com/)
+[![Dataset](https://img.shields.io/badge/Dataset-UGA%20OpenScholar-green)](https://openscholar.uga.edu/record/27692)
+[![Dataset Mirror](https://img.shields.io/badge/Dataset-Mirror-lightgreen)](https://pp3d-data.sdkhomelab.com/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 **PixelPatrol3D (PP3D)** is the first end-to-end browser framework for discovering, detecting, and defending against web-based behavior manipulation attacks (BMAs) in real time. Unlike traditional phishing attacks that steal credentials, BMAs manipulate users into performing unsafe actions like downloading malware, granting unwanted permissions, or calling fraudulent support lines.
@@ -137,14 +138,23 @@ huggingface-cli login
 
 ### 2. Download Dataset (Optional)
 
+**Recommended:** Download from UGA OpenScholar (institutional repository with long-term stability):
+- Visit [https://openscholar.uga.edu/record/27692](https://openscholar.uga.edu/record/27692)
+- DOI: [10.71927/uga.27692](https://doi.org/10.71927/uga.27692)
+- Download the complete dataset ZIP file from the repository page
+
+**Alternative:** Download from original source using wget:
+
 ```bash
 # Download complete dataset (359GB)
-wget -r -np -nH --cut-dirs=4 -R "index.html*" http://pp3d-data.sdkhomelab.com/
+wget -r -np -nH --cut-dirs=4 -R "index.html*" https://pp3d-data.sdkhomelab.com/
 
 # Or download specific components
-wget http://pp3d-data.sdkhomelab.com/train.zip  # Training data (46GB)
-wget http://pp3d-data.sdkhomelab.com/test.zip   # Test data (1GB)
+wget https://pp3d-data.sdkhomelab.com/train.zip  # Training data (46GB)
+wget https://pp3d-data.sdkhomelab.com/test.zip   # Test data (1GB)
 ```
+
+Both sources host the same dataset with identical file sizes and checksums.
 
 ### 3. Run Detection Model
 
@@ -277,7 +287,7 @@ The demonstrations illustrate how PP_Defend uses privacy-preserving on-device mo
 
 ### Access & Usage
 
-- **Public Dataset**: Available at [http://pp3d-data.sdkhomelab.com/](http://pp3d-data.sdkhomelab.com/)
+- **Public Dataset**: Available at [UGA OpenScholar](https://openscholar.uga.edu/record/27692) (recommended for long-term stability) and [original source](https://pp3d-data.sdkhomelab.com/) (alternative mirror)
 - **Organized Structure**: Data organized by research questions for easy access
 - **Verification**: MD5 checksums provided for integrity verification
 
@@ -318,6 +328,20 @@ If you use PixelPatrol3D in your research, please cite our paper:
   booktitle={Annual Computer Security Applications Conference (ACSAC)},
   year={2025},
   publisher={ACM}
+}
+```
+
+If you use the PP3D dataset, please cite:
+
+```bibtex
+@dataset{pp3d_dataset2025,
+  author={King, S. and Ozen, I. and Subramani, K. and Senthivel, S. and Vadrevu, P. and Perdisci, R.},
+  title={PP3D: An In-Browser Vision-Based Defense Against Web Behavior Manipulation Attacks},
+  year={2025},
+  publisher={University of Georgia},
+  version={1},
+  doi={10.71927/uga.27692},
+  url={https://openscholar.uga.edu/record/27692}
 }
 ```
 
